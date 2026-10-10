@@ -11,6 +11,7 @@ import '../services/card_group_storage.dart';
 import '../services/secure_card_storage.dart';
 import '../services/ocr_service.dart';
 import '../services/app_log_service.dart';
+import '../services/auth_service.dart';
 import '../providers/card_view_provider.dart';
 import '../providers/nfc_provider.dart';
 import '../providers/theme_provider.dart';
@@ -818,6 +819,37 @@ class _SavedCardsScreenState extends State<SavedCardsScreen>
     }
   }
 
+  Future<void> _editCard(CardData card) async {
+    final authentication =
+        context.read<AuthenticationCoordinator?>() ??
+        AuthenticationCoordinator();
+    final authenticated = await authentication.authorize(
+      ProtectedAction.editCardDetails,
+      reason: 'Authenticate to edit protected card details',
+    );
+    if (!mounted) return;
+    if (!authenticated) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            authentication.lastErrorMessage ?? 'Authentication required',
+          ),
+          backgroundColor: Theme.of(context).colorScheme.error,
+        ),
+      );
+      return;
+    }
+    AppLogService.instance.action(
+      'Navigation',
+      'Opened card editor from swipe',
+    );
+    final result = await Navigator.push<CardData>(
+      context,
+      MaterialPageRoute(builder: (context) => CardEditScreen(card: card)),
+    );
+    if (result != null && mounted) await _loadCards();
+  }
+
   void _onCardTap(CardData card) async {
     if (_isSelectionMode) {
       _toggleCardSelection(card);
@@ -967,6 +999,7 @@ class _SavedCardsScreenState extends State<SavedCardsScreen>
           onCardLongPress: _startSelection,
           onCardShare: _shareCard,
           onCardDelete: _deleteCard,
+          onCardEdit: _editCard,
           selectedCardIds: _selectedCardIds,
           selectionMode: _isSelectionMode,
         );

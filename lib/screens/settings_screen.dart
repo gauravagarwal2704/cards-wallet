@@ -18,6 +18,7 @@ import '../services/secure_card_storage.dart';
 import '../services/auth_service.dart';
 import '../services/app_log_service.dart';
 import '../models/theme_config.dart' as config;
+import '../models/app_release.dart';
 
 import 'package:package_info_plus/package_info_plus.dart';
 
@@ -31,6 +32,8 @@ import '../utils/debug_logger.dart';
 import 'appearance_screen.dart';
 import 'developer_options_screen.dart';
 import 'privacy_policy_screen.dart';
+import 'change_history_screen.dart';
+import 'support_developer_screen.dart';
 
 class SettingsScreen extends StatefulWidget {
   const SettingsScreen({super.key, this.onCardsChanged});
@@ -47,13 +50,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
     'https://github.com/gauravagarwal2704/cards-vault',
   );
   static final Uri _telegramUrl = Uri.parse('https://t.me/CardVaultApp');
-  static final Uri _buyMeACoffeeUrl = Uri.parse(
-    'https://buymeacoffee.com/gauravagarwal',
-  );
-  static final Uri _buyMeAChaiUrl = Uri.parse(
-    'https://buymeachai.in/gauravagarwal',
-  );
-
   final SecureCardStorage _cardStorage = SecureCardStorage();
   bool _isExporting = false;
   bool _isImporting = false;
@@ -611,7 +607,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
     showLicensePage(
       context: context,
       applicationName: 'CardVault',
-      applicationVersion: _appVersion.isEmpty ? '1.2.1' : _appVersion,
+      applicationVersion: _appVersion.isEmpty
+          ? AppRelease.history.first.version
+          : _appVersion,
       applicationLegalese: 'Open-source software licenses',
     );
   }
@@ -621,6 +619,16 @@ class _SettingsScreenState extends State<SettingsScreen> {
     Navigator.push<void>(
       context,
       MaterialPageRoute(builder: (_) => const PrivacyPolicyScreen()),
+    );
+  }
+
+  void _showSupportDeveloper() {
+    AppLogService.instance.action('Navigation', 'Opened supporter tips');
+    Navigator.of(context).push<void>(
+      MaterialPageRoute(
+        fullscreenDialog: true,
+        builder: (_) => const SupportDeveloperScreen(),
+      ),
     );
   }
 
@@ -796,11 +804,12 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 ),
               ),
               Container(
+                key: const ValueKey('appearance-active-color'),
                 width: 22,
                 height: 22,
                 decoration: BoxDecoration(
                   shape: BoxShape.circle,
-                  color: themeProvider.seedColor,
+                  color: themeProvider.getPrimaryColor(),
                   border: Border.all(
                     color: themeProvider.getOutlineColor(),
                     width: 1.5,
@@ -975,11 +984,26 @@ class _SettingsScreenState extends State<SettingsScreen> {
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: [
-        AppIconArtwork(
-          option: appIcon,
-          size: 82,
-          borderRadius: 22,
-          addSurfaceShadow: true,
+        Semantics(
+          button: true,
+          label: 'Support CardVault',
+          child: Tooltip(
+            message: 'Support CardVault',
+            child: InkWell(
+              key: const ValueKey('support-developer-app-icon'),
+              customBorder: const CircleBorder(),
+              onTap: _showSupportDeveloper,
+              child: Padding(
+                padding: const EdgeInsets.all(4),
+                child: AppIconArtwork(
+                  option: appIcon,
+                  size: 82,
+                  borderRadius: 22,
+                  addSurfaceShadow: true,
+                ),
+              ),
+            ),
+          ),
         ),
         const SizedBox(height: 12),
         Text(
@@ -995,7 +1019,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
           child: Padding(
             padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
             child: Text(
-              'Version ${_appVersion.isEmpty ? '1.2.1' : _appVersion}',
+              'Version ${_appVersion.isEmpty ? AppRelease.history.first.version : _appVersion}',
               style: AppTypography.caption(color: secondary),
             ),
           ),
@@ -1038,29 +1062,15 @@ class _SettingsScreenState extends State<SettingsScreen> {
           ),
           Expanded(
             child: _buildHeaderLink(
-              key: const ValueKey('buy-me-a-coffee-link'),
-              label: 'Coffee',
-              backgroundColor: const Color(0xFFFFDD00),
-              icon: const Icon(
-                Icons.coffee_rounded,
+              key: const ValueKey('support-developer-link'),
+              label: 'Support',
+              backgroundColor: Theme.of(context).colorScheme.primaryContainer,
+              icon: Icon(
+                Icons.favorite_rounded,
                 size: 25,
-                color: Color(0xFF1A1A1A),
+                color: Theme.of(context).colorScheme.onPrimaryContainer,
               ),
-              onTap: () =>
-                  _openExternalLink(_buyMeACoffeeUrl, 'Buy Me a Coffee'),
-            ),
-          ),
-          Expanded(
-            child: _buildHeaderLink(
-              key: const ValueKey('buy-me-a-chai-link'),
-              label: 'Chai',
-              backgroundColor: const Color(0xFFDE6B35),
-              icon: const Icon(
-                Icons.emoji_food_beverage_rounded,
-                size: 25,
-                color: Colors.white,
-              ),
-              onTap: () => _openExternalLink(_buyMeAChaiUrl, 'Buy Me a Chai'),
+              onTap: _showSupportDeveloper,
             ),
           ),
         ],
@@ -1224,6 +1234,17 @@ class _SettingsScreenState extends State<SettingsScreen> {
     return _buildCard(
       child: Column(
         children: [
+          _buildAboutRow(
+            key: const ValueKey('change-history-link'),
+            icon: Icons.history_rounded,
+            title: 'Change history',
+            subtitle: 'See what changed in each version',
+            trailingIcon: Icons.chevron_right,
+            onTap: () => Navigator.of(context).push<void>(
+              MaterialPageRoute(builder: (_) => const ChangeHistoryScreen()),
+            ),
+          ),
+          const Divider(height: 1),
           _buildAboutRow(
             key: const ValueKey('privacy-policy-link'),
             icon: Icons.privacy_tip_outlined,

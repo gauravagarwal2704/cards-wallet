@@ -3,6 +3,8 @@
 // ignore_for_file: prefer_initializing_formals
 
 import '../services/encryption_service.dart';
+import 'card_image_placement.dart';
+import 'card_overlay_visibility.dart';
 
 enum ReadMethod { nfc, camera, manual }
 
@@ -34,6 +36,13 @@ class CardData {
   final double customGradientAngle;
   final String? customBackgroundImagePath;
   final double backgroundImageBlur;
+  final CardImagePlacement backgroundImagePlacement;
+  final CardOverlayVisibility overlayVisibility;
+
+  CardOverlayVisibility get effectiveOverlayVisibility =>
+      customBackgroundImagePath?.isNotEmpty == true
+      ? overlayVisibility
+      : const CardOverlayVisibility();
   final String? notes;
   final List<String> attachmentIds;
   final String? groupId;
@@ -60,6 +69,8 @@ class CardData {
     this.customGradientAngle = 135,
     this.customBackgroundImagePath,
     this.backgroundImageBlur = 0,
+    this.backgroundImagePlacement = const CardImagePlacement(),
+    this.overlayVisibility = const CardOverlayVisibility(),
     this.notes,
     this.attachmentIds = const [],
     this.groupId,
@@ -92,6 +103,8 @@ class CardData {
     double customGradientAngle = 135,
     String? customBackgroundImagePath,
     double backgroundImageBlur = 0,
+    CardImagePlacement backgroundImagePlacement = const CardImagePlacement(),
+    CardOverlayVisibility overlayVisibility = const CardOverlayVisibility(),
     String? notes,
     List<String>? attachmentIds,
     String? groupId,
@@ -142,6 +155,8 @@ class CardData {
       customGradientAngle: customGradientAngle,
       customBackgroundImagePath: customBackgroundImagePath,
       backgroundImageBlur: backgroundImageBlur,
+      backgroundImagePlacement: backgroundImagePlacement,
+      overlayVisibility: overlayVisibility,
       notes: notes,
       attachmentIds: attachmentIds ?? const [],
       groupId: groupId,
@@ -230,6 +245,8 @@ class CardData {
     double? customGradientAngle,
     String? customBackgroundImagePath,
     double? backgroundImageBlur,
+    CardImagePlacement? backgroundImagePlacement,
+    CardOverlayVisibility? overlayVisibility,
     String? notes,
     List<String>? attachmentIds,
     String? groupId,
@@ -267,6 +284,10 @@ class CardData {
           ? null
           : (customBackgroundImagePath ?? this.customBackgroundImagePath),
       backgroundImageBlur: backgroundImageBlur ?? this.backgroundImageBlur,
+      backgroundImagePlacement: clearCustomBackgroundImage
+          ? const CardImagePlacement()
+          : (backgroundImagePlacement ?? this.backgroundImagePlacement),
+      overlayVisibility: overlayVisibility ?? this.overlayVisibility,
       notes: notes ?? this.notes,
       attachmentIds: attachmentIds ?? this.attachmentIds,
       groupId: clearGroup ? null : (groupId ?? this.groupId),
@@ -296,6 +317,8 @@ class CardData {
       'customGradientAngle': customGradientAngle,
       'customBackgroundImagePath': customBackgroundImagePath,
       'backgroundImageBlur': backgroundImageBlur,
+      'backgroundImagePlacement': backgroundImagePlacement.toJson(),
+      'hiddenCardOverlays': overlayVisibility.toJson(),
       'notes': notes,
       'attachmentIds': attachmentIds,
       'groupId': groupId,
@@ -340,6 +363,12 @@ class CardData {
       customBackgroundImagePath: json['customBackgroundImagePath'] as String?,
       backgroundImageBlur:
           (json['backgroundImageBlur'] as num?)?.toDouble() ?? 0,
+      backgroundImagePlacement: CardImagePlacement.fromJson(
+        json['backgroundImagePlacement'],
+      ),
+      overlayVisibility: CardOverlayVisibility.fromJson(
+        json['hiddenCardOverlays'],
+      ),
       notes: json['notes'] as String?,
       attachmentIds:
           (json['attachmentIds'] as List<dynamic>?)

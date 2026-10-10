@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import '../models/card_overlay_visibility.dart';
+
 import '../data/banks.dart';
 import '../data/card_designs.dart';
 import '../models/card_data.dart';
@@ -11,6 +13,7 @@ import 'bank_logo.dart';
 import 'card_background_surface.dart';
 import 'wallet_card_hero.dart';
 import 'card_network_logo.dart';
+import 'card_overlay_slot.dart';
 import 'wallet_card.dart';
 
 const _tileAspectRatio = 1.586;
@@ -140,6 +143,7 @@ class CardTile extends StatelessWidget {
                       customGradientAngle: card.customGradientAngle,
                       customBackgroundImagePath: card.customBackgroundImagePath,
                       backgroundImageBlur: card.backgroundImageBlur,
+                      backgroundImagePlacement: card.backgroundImagePlacement,
                       fallbackPrimaryColor: primaryColor,
                       fallbackSecondaryColor: secondaryColor,
                       borderRadius: BorderRadius.circular(14),
@@ -150,46 +154,68 @@ class CardTile extends StatelessWidget {
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             if (bank != null)
-                              BankLogo(
-                                bank: bank,
-                                size: 18,
-                                useSmall: false,
-                                backgroundColor: primaryColor,
-                                foregroundColor: textColor,
-                                maxWidth: 76,
+                              CardOverlaySlot(
+                                visible: card.effectiveOverlayVisibility.shows(
+                                  CardOverlay.bankLogo,
+                                ),
+                                child: BankLogo(
+                                  bank: bank,
+                                  size: 18,
+                                  useSmall: false,
+                                  backgroundColor: primaryColor,
+                                  foregroundColor: textColor,
+                                  maxWidth: 76,
+                                ),
                               ),
                             const Spacer(),
-                            Text(
-                              card.cardNickname?.isNotEmpty == true
-                                  ? card.cardNickname!
-                                  : card.categoryName,
-                              style: AppTypography.label(
-                                fontSize: 11,
-                                color: textColor,
+                            CardOverlaySlot(
+                              visible: card.cardNickname?.isNotEmpty == true
+                                  ? card.effectiveOverlayVisibility.shows(
+                                      CardOverlay.nickname,
+                                    )
+                                  : card.effectiveOverlayVisibility.shows(
+                                      CardOverlay.category,
+                                    ),
+                              child: Text(
+                                card.cardNickname?.isNotEmpty == true
+                                    ? card.cardNickname!
+                                    : card.categoryName,
+                                style: AppTypography.label(
+                                  fontSize: 11,
+                                  color: textColor,
+                                ),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
                               ),
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
                             ),
                             const SizedBox(height: 2),
                             Row(
                               crossAxisAlignment: CrossAxisAlignment.end,
                               children: [
                                 Expanded(
-                                  child: Text(
-                                    '•••• ${card.lastFourDigits}',
-                                    style: AppTypography.mono(
-                                      fontSize: 12,
-                                      fontWeight: FontWeight.w500,
-                                      color: subtleColor,
-                                      letterSpacing: 1,
+                                  child: CardOverlaySlot(
+                                    visible: card.effectiveOverlayVisibility
+                                        .shows(CardOverlay.cardNumber),
+                                    child: Text(
+                                      '•••• ${card.lastFourDigits}',
+                                      style: AppTypography.mono(
+                                        fontSize: 12,
+                                        fontWeight: FontWeight.w500,
+                                        color: subtleColor,
+                                        letterSpacing: 1,
+                                      ),
                                     ),
                                   ),
                                 ),
-                                CardNetworkLogo(
-                                  cardNumber: '',
-                                  forceNetwork: network,
-                                  height: 18,
-                                  backgroundColor: primaryColor,
+                                CardOverlaySlot(
+                                  visible: card.effectiveOverlayVisibility
+                                      .shows(CardOverlay.networkLogo),
+                                  child: CardNetworkLogo(
+                                    cardNumber: '',
+                                    forceNetwork: network,
+                                    height: 18,
+                                    backgroundColor: primaryColor,
+                                  ),
                                 ),
                               ],
                             ),

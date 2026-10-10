@@ -3,8 +3,11 @@ import 'dart:async';
 import 'package:cards_wallet/providers/app_lock_provider.dart';
 import 'package:cards_wallet/main.dart';
 import 'package:cards_wallet/screens/saved_cards_screen.dart';
+import 'package:cards_wallet/screens/card_edit_screen.dart';
+import 'package:cards_wallet/services/ocr_service.dart';
 import 'package:cards_wallet/services/auth_service.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -92,23 +95,37 @@ void main() {
     expect(await store.isEnabled(), isFalse);
   });
 
-  testWidgets('a paused app locks the vault immediately', (tester) async {
+  testWidgets('app exits have a two-minute cooldown', (tester) async {
+    var now = DateTime(2026, 10, 10, 12);
     final authenticator = _FakeAppLockAuthenticator();
     final provider = AppLockProvider(
       authenticator: authenticator,
+      now: () => now,
       observeLifecycle: false,
+      useNativeLifecycle: false,
     );
     addTearDown(provider.dispose);
     final context = await _mountContext(tester);
-
-    expect(provider.isLocked, isTrue);
     expect(await provider.authenticate(context), isTrue);
-    expect(provider.isLocked, isFalse);
 
+    provider.didChangeAppLifecycleState(AppLifecycleState.hidden);
     provider.didChangeAppLifecycleState(AppLifecycleState.paused);
+    now = now.add(const Duration(seconds: 119));
+    provider.didChangeAppLifecycleState(AppLifecycleState.resumed);
+    expect(provider.isLocked, isFalse);
+    expect(await provider.authenticate(context), isTrue);
+    expect(authenticator.authenticationCalls, 1);
+    expect(authenticator.clearCooldownCalls, 0);
 
+    provider.didChangeAppLifecycleState(AppLifecycleState.hidden);
+    now = now.add(const Duration(seconds: 60));
+    provider.didChangeAppLifecycleState(AppLifecycleState.paused);
+    now = now.add(const Duration(seconds: 60));
+    provider.didChangeAppLifecycleState(AppLifecycleState.resumed);
     expect(provider.isLocked, isTrue);
     expect(authenticator.clearCooldownCalls, 1);
+    expect(await provider.authenticate(context), isTrue);
+    expect(authenticator.authenticationCalls, 2);
   });
 
   testWidgets('enabling app lock keeps the authenticated session open', (
@@ -121,6 +138,7 @@ void main() {
       authenticator: authenticator,
       preferenceStore: preferences,
       observeLifecycle: false,
+      useNativeLifecycle: false,
     );
     addTearDown(provider.dispose);
     await tester.pump();
@@ -132,7 +150,7 @@ void main() {
     expect(preferences.savedValue, isTrue);
 
     provider.didChangeAppLifecycleState(AppLifecycleState.paused);
-    expect(provider.isLocked, isTrue);
+    expect(provider.isLocked, isFalse);
   });
 
   testWidgets('short protected-auth overlay does not lock the vault', (
@@ -145,6 +163,7 @@ void main() {
       lockTimeout: const Duration(seconds: 30),
       now: () => now,
       observeLifecycle: false,
+      useNativeLifecycle: false,
     );
     addTearDown(provider.dispose);
     final context = await _mountContext(tester);
@@ -170,6 +189,7 @@ void main() {
       lockTimeout: const Duration(seconds: 30),
       now: () => now,
       observeLifecycle: false,
+      useNativeLifecycle: false,
     );
     addTearDown(provider.dispose);
     final context = await _mountContext(tester);
@@ -185,9 +205,7 @@ void main() {
     expect(authenticator.cancellationCalls, 1);
   });
 
-  testWidgets('inactive grace period locks only after the configured timeout', (
-    tester,
-  ) async {
+  testWidgets('focus loss never ends the foreground session', (tester) async {
     var now = DateTime(2026, 8, 26, 12);
     final authenticator = _FakeAppLockAuthenticator();
     final provider = AppLockProvider(
@@ -195,6 +213,7 @@ void main() {
       lockTimeout: const Duration(seconds: 10),
       now: () => now,
       observeLifecycle: false,
+      useNativeLifecycle: false,
     );
     addTearDown(provider.dispose);
     final context = await _mountContext(tester);
@@ -208,7 +227,55 @@ void main() {
     provider.didChangeAppLifecycleState(AppLifecycleState.inactive);
     now = now.add(const Duration(seconds: 10));
     provider.didChangeAppLifecycleState(AppLifecycleState.resumed);
+    expect(provider.isLocked, isFalse);
+  });
+
+  testWidgets('native scanner stays unlocked, real Android exits expire', (
+    tester,
+  ) async {
+    var now = DateTime(2026, 10, 10, 12);
+    final authenticator = _FakeAppLockAuthenticator();
+    final provider = AppLockProvider(
+      authenticator: authenticator,
+      now: () => now,
+      useNativeLifecycle: true,
+    );
+    addTearDown(provider.dispose);
+    final context = await _mountContext(tester);
+    expect(await provider.authenticate(context), isTrue);
+
+    // Flutter pauses for the native scanner, while the app stays visible.
+    provider.didChangeAppLifecycleState(AppLifecycleState.inactive);
+    provider.didChangeAppLifecycleState(AppLifecycleState.hidden);
+    provider.didChangeAppLifecycleState(AppLifecycleState.paused);
+    now = now.add(const Duration(minutes: 3));
+    provider.didChangeAppLifecycleState(AppLifecycleState.resumed);
+    expect(provider.isLocked, isFalse);
+    expect(authenticator.clearCooldownCalls, 0);
+
+    Future<void> sendForeground(bool foreground) async {
+      final response = Completer<void>();
+      tester.binding.defaultBinaryMessenger.handlePlatformMessage(
+        'cards_wallet/app_lifecycle',
+        const StandardMethodCodec().encodeMethodCall(
+          MethodCall('foregroundChanged', foreground),
+        ),
+        (_) => response.complete(),
+      );
+      await response.future;
+    }
+
+    await sendForeground(false);
+    now = now.add(const Duration(seconds: 119));
+    await sendForeground(true);
+    expect(provider.isLocked, isFalse);
+
+    await sendForeground(false);
+    now = now.add(const Duration(minutes: 2));
+    await sendForeground(true);
     expect(provider.isLocked, isTrue);
+    expect(authenticator.authenticationCalls, 1);
+    expect(authenticator.clearCooldownCalls, 1);
   });
 
   testWidgets('backgrounding invalidates an in-flight authentication', (
@@ -219,6 +286,7 @@ void main() {
     final provider = AppLockProvider(
       authenticator: authenticator,
       observeLifecycle: false,
+      useNativeLifecycle: false,
     );
     addTearDown(provider.dispose);
     final context = await _mountContext(tester);
@@ -244,6 +312,7 @@ void main() {
     final provider = AppLockProvider(
       authenticator: authenticator,
       observeLifecycle: false,
+      useNativeLifecycle: false,
     );
     addTearDown(provider.dispose);
     final context = await _mountContext(tester);
@@ -264,6 +333,7 @@ void main() {
         authenticator: authenticator,
         preferenceStore: preferences,
         observeLifecycle: false,
+        useNativeLifecycle: false,
       );
       addTearDown(provider.dispose);
 
@@ -293,6 +363,7 @@ void main() {
       authenticator: authenticator,
       preferenceStore: preferences,
       observeLifecycle: false,
+      useNativeLifecycle: true,
     );
     final securityInitialization = Completer<void>();
 
@@ -320,5 +391,48 @@ void main() {
     authenticator.pendingAuthentication!.complete(true);
     await tester.pump();
     expect(find.byType(SavedCardsScreen), findsOneWidget);
+
+    final homeState = tester.state(find.byType(SavedCardsScreen));
+    final homeContext = homeState.context;
+    final navigator = Navigator.of(homeContext);
+    Future<void> scanAndReview() async {
+      final result = await navigator.push<OCRResult>(
+        MaterialPageRoute(
+          builder: (_) => const Scaffold(body: Text('Native scanner host')),
+        ),
+      );
+      if (result != null && homeContext.mounted) {
+        unawaited(
+          navigator.push<void>(
+            MaterialPageRoute(
+              builder: (_) => CardEditScreen(ocrResult: result),
+            ),
+          ),
+        );
+      }
+    }
+
+    final scan = scanAndReview();
+    await tester.pumpAndSettle();
+    provider.didChangeAppLifecycleState(AppLifecycleState.inactive);
+    provider.didChangeAppLifecycleState(AppLifecycleState.hidden);
+    provider.didChangeAppLifecycleState(AppLifecycleState.paused);
+    await tester.pump(const Duration(minutes: 3));
+    provider.didChangeAppLifecycleState(AppLifecycleState.resumed);
+    await tester.pump();
+    expect(homeContext.mounted, isTrue);
+    expect(
+      tester.state(find.byType(SavedCardsScreen, skipOffstage: false)),
+      same(homeState),
+    );
+
+    navigator.pop(const OCRResult(cardNumber: '4111111111111111'));
+    await scan;
+    await tester.pumpAndSettle();
+    expect(find.byType(CardEditScreen), findsOneWidget);
+    expect(find.byKey(const ValueKey('card-editor-save')), findsOneWidget);
+    expect(find.text('CardVault is locked'), findsNothing);
+    expect(authenticator.authenticationCalls, 1);
+    expect(tester.takeException(), isNull);
   });
 }

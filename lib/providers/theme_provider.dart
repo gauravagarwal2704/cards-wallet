@@ -4,6 +4,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../models/theme_config.dart' as config;
 import '../theme/app_theme.dart';
 import '../services/app_log_service.dart';
+import '../services/device_color_service.dart';
 
 class ThemeProvider extends ChangeNotifier with WidgetsBindingObserver {
   static const String _legacyThemeKey = 'selected_theme_mode';
@@ -17,11 +18,14 @@ class ThemeProvider extends ChangeNotifier with WidgetsBindingObserver {
   config.AppBrightnessMode _brightnessMode = config.AppBrightnessMode.system;
   config.AppColorSource _colorSource = config.AppColorSource.preset;
   config.AppPaletteStrategy _paletteStrategy =
-      config.AppPaletteStrategy.expressive;
+      config.AppPaletteStrategy.tonalSpot;
   Color _seedColor = config.AccentColorOption.indigo.seedColor;
   String? _accentId = config.AccentColorOption.indigo.id;
   Brightness _platformBrightness = Brightness.light;
   bool _isInitialized = false;
+  bool _disposed = false;
+  int _deviceColorGeneration = 0;
+  DeviceColorSchemes? _deviceColors;
 
   ThemeData _lightTheme = AppTheme.build(
     brightnessMode: config.AppBrightnessMode.light,
@@ -53,6 +57,7 @@ class ThemeProvider extends ChangeNotifier with WidgetsBindingObserver {
   String? get accentId => _accentId;
   bool get isCustomColor => _colorSource == config.AppColorSource.custom;
   bool get usesSystemColors => _colorSource == config.AppColorSource.system;
+  bool get hasDeviceColors => _deviceColors != null;
   bool get isInitialized => _isInitialized;
 
   ThemeData get lightTheme => _lightTheme;
@@ -83,23 +88,35 @@ class ThemeProvider extends ChangeNotifier with WidgetsBindingObserver {
 
   void _rebuildThemes() {
     final useSystemColors = _colorSource == config.AppColorSource.system;
+    final themeSeed = useSystemColors
+        ? config.AccentColorOption.indigo.seedColor
+        : _seedColor;
     _lightTheme = AppTheme.build(
       brightnessMode: config.AppBrightnessMode.light,
-      seedColor: _seedColor,
-      schemeVariant: schemeVariant,
+      seedColor: themeSeed,
+      schemeVariant: useSystemColors
+          ? DynamicSchemeVariant.tonalSpot
+          : schemeVariant,
       useSystemColors: useSystemColors,
+      deviceColorScheme: useSystemColors ? _deviceColors?.light : null,
     );
     _darkTheme = AppTheme.build(
       brightnessMode: config.AppBrightnessMode.dark,
-      seedColor: _seedColor,
-      schemeVariant: schemeVariant,
+      seedColor: themeSeed,
+      schemeVariant: useSystemColors
+          ? DynamicSchemeVariant.tonalSpot
+          : schemeVariant,
       useSystemColors: useSystemColors,
+      deviceColorScheme: useSystemColors ? _deviceColors?.dark : null,
     );
     _oledTheme = AppTheme.build(
       brightnessMode: config.AppBrightnessMode.amoled,
-      seedColor: _seedColor,
-      schemeVariant: schemeVariant,
+      seedColor: themeSeed,
+      schemeVariant: useSystemColors
+          ? DynamicSchemeVariant.tonalSpot
+          : schemeVariant,
       useSystemColors: useSystemColors,
+      deviceColorScheme: useSystemColors ? _deviceColors?.dark : null,
     );
   }
 
@@ -114,14 +131,26 @@ class ThemeProvider extends ChangeNotifier with WidgetsBindingObserver {
       final savedCustom = prefs.getBool(_customColorKey);
       final savedPaletteStrategy = prefs.getString(_paletteStrategyKey);
 
+      // Preserve the prior default for returning users who have saved appearance
+      // choices; only fresh installations adopt Tonal Spot automatically.
+      if (savedPaletteStrategy == null &&
+          (savedBrightness != null ||
+              savedSource != null ||
+              savedSeed != null ||
+              prefs.containsKey(_legacyThemeKey) ||
+              (prefs.getString('profile_display_name')?.trim().isNotEmpty ??
+                  false))) {
+        _paletteStrategy = config.AppPaletteStrategy.expressive;
+      }
+
       if (savedPaletteStrategy != null) {
         _paletteStrategy = config.AppPaletteStrategy.values.firstWhere(
           (strategy) => strategy.name == savedPaletteStrategy,
-          orElse: () => config.AppPaletteStrategy.expressive,
+          orElse: () => config.AppPaletteStrategy.tonalSpot,
         );
       }
 
-      if (savedBrightness != null || savedSeed != null) {
+      if (savedBrightness != null || savedSeed != null || savedSource != null) {
         if (savedBrightness != null) {
           _brightnessMode = config.AppBrightnessMode.values.firstWhere(
             (mode) => mode.name == savedBrightness,
@@ -164,7 +193,8 @@ class ThemeProvider extends ChangeNotifier with WidgetsBindingObserver {
         }
       }
 
-      _rebuildThemes();
+      if (usesSystemColors) _deviceColors = await DeviceColorService.load();
+      if (!_disposed) _rebuildThemes();
     } catch (error, stackTrace) {
       AppLogService.instance.recordFailure(
         'Load appearance preferences',
@@ -175,7 +205,7 @@ class ThemeProvider extends ChangeNotifier with WidgetsBindingObserver {
       debugPrint('Error loading theme: $error');
     } finally {
       _isInitialized = true;
-      notifyListeners();
+      if (!_disposed) notifyListeners();
     }
   }
 
@@ -233,11 +263,26 @@ class ThemeProvider extends ChangeNotifier with WidgetsBindingObserver {
 
   Future<void> useSystemColorSource() async {
     AppLogService.instance.action('Appearance', 'System colors selected');
-    if (_colorSource == config.AppColorSource.system) return;
     _colorSource = config.AppColorSource.system;
     _accentId ??= config.AccentColorOption.indigo.id;
     _rebuildThemes();
     await _persist();
+    if (_disposed) return;
+    notifyListeners();
+    await refreshDeviceColors();
+  }
+
+  Future<void> refreshDeviceColors() async {
+    if (!usesSystemColors) return;
+    final generation = ++_deviceColorGeneration;
+    final colors = await DeviceColorService.load();
+    if (_disposed ||
+        !usesSystemColors ||
+        generation != _deviceColorGeneration) {
+      return;
+    }
+    _deviceColors = colors;
+    _rebuildThemes();
     notifyListeners();
   }
 
@@ -274,7 +319,13 @@ class ThemeProvider extends ChangeNotifier with WidgetsBindingObserver {
   }
 
   @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) refreshDeviceColors();
+  }
+
+  @override
   void dispose() {
+    _disposed = true;
     WidgetsBinding.instance.removeObserver(this);
     super.dispose();
   }

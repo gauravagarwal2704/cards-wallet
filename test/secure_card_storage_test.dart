@@ -3,6 +3,8 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:cards_wallet/models/card_data.dart';
+import 'package:cards_wallet/models/card_image_placement.dart';
+import 'package:cards_wallet/models/card_overlay_visibility.dart';
 import 'package:cards_wallet/services/backup_crypto.dart';
 import 'package:cards_wallet/services/card_attachment_storage.dart';
 import 'package:cards_wallet/services/card_background_storage.dart';
@@ -181,6 +183,39 @@ void main() {
         SecureCardStorage().loadCards(),
         throwsA(isA<Exception>()),
       );
+    },
+  );
+
+  test(
+    'image alignment survives encrypted backup export and restore',
+    () async {
+      FlutterSecureStoragePlatform.instance = _ControlledSecureStoragePlatform(
+        {},
+      );
+      const placement = CardImagePlacement(zoom: 2.4, x: .6, y: -.3);
+      final card = await CardData.fromPlaintext(
+        cardNumber: '4111111111111111',
+        expiryDate: '12/30',
+        cardType: 'Visa',
+        id: 'image-card',
+        backgroundImagePlacement: placement,
+        overlayVisibility: const CardOverlayVisibility(
+          hidden: {CardOverlay.networkLogo, CardOverlay.bankLogo},
+        ),
+      );
+      final bundle = await _writeBundle(
+        root: testRoot,
+        encryptedCards: [card.toJson()],
+        masterKeyBase64: await EncryptionService().getMasterKeyBase64(),
+      );
+      await SecureCardStorage().importBackup(bundle.path, 'correct-password');
+      final restored = (await SecureCardStorage().loadCards()).single;
+      expect(await restored.getDecryptedCardNumber(), '4111111111111111');
+      expect(restored.backgroundImagePlacement.toJson(), placement.toJson());
+      expect(restored.overlayVisibility.hidden, {
+        CardOverlay.networkLogo,
+        CardOverlay.bankLogo,
+      });
     },
   );
 

@@ -69,7 +69,7 @@ class PrivacyPolicyScreen extends StatelessWidget {
                     ),
                     const SizedBox(height: AppSpacing.xs),
                     Text(
-                      'Effective 24 September 2026',
+                      'Effective 10 October 2026',
                       style: AppTypography.caption(
                         color: scheme.onSurfaceVariant,
                       ),
@@ -88,7 +88,8 @@ class PrivacyPolicyScreen extends StatelessWidget {
                           'CardVault is an offline card organizer developed by '
                           'Gaurav Agarwal. It does not require an account, run '
                           'advertising, use analytics, or sell personal data. '
-                          'Your saved wallet is kept on your device.',
+                          'Your saved wallet is kept on your device. Optional '
+                          'Supporter Star purchases are processed separately by Google Play.',
                     ),
                     const _PolicySection(
                       title: 'Data you choose to store',
@@ -147,13 +148,29 @@ class PrivacyPolicyScreen extends StatelessWidget {
                           'sent unless you explicitly attach them to feedback.',
                     ),
                     const _PolicySection(
+                      title: 'Optional Supporter Stars',
+                      body:
+                          'If you choose to purchase a Supporter Star, Google Play processes '
+                          'the payment under Google\'s terms and privacy policy. '
+                          'CardVault receives the selected product identifier '
+                          'and temporary transaction status needed to complete '
+                          'the purchase. CardVault does not receive your payment-card '
+                          'number, does not create a purchase account, and does '
+                          'not retain a local or server-side payment history. '
+                          'It stores only an aggregate Supporter Star count on '
+                          'your device. Support is optional, and no functional '
+                          'app feature is restricted or unlocked.',
+                    ),
+                    const _PolicySection(
                       title: 'Retention and deletion',
                       body:
                           'Card records, groups, and their app-managed images '
                           'remain on your device until you delete a card or use '
                           'Settings > Data > Delete all cards. Your display name '
                           'and preferences remain until changed, app storage is '
-                          'cleared, or CardVault is uninstalled. Files you export '
+                          'cleared, or CardVault is uninstalled. The local '
+                          'Supporter Star count follows the same retention. '
+                          'Files you export '
                           'or share are controlled by you and the receiving app. '
                           'CardVault has no server account or server-side wallet '
                           'data to delete.',

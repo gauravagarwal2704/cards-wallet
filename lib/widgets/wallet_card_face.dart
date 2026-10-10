@@ -1,11 +1,13 @@
 import 'package:flutter/material.dart';
 
 import '../data/banks.dart';
+import '../models/card_overlay_visibility.dart';
 import '../theme/app_typography.dart';
 import '../utils/card_contrast.dart';
 import 'bank_logo.dart';
 import 'card_network_logo.dart';
 import 'wallet_card.dart';
+import 'card_overlay_slot.dart';
 
 /// Shared full-size card face used by card forms and the card detail screen.
 /// Keeping the content in one widget prevents saved cards and form previews
@@ -22,6 +24,7 @@ class WalletCardFace extends StatelessWidget {
     required this.expiryDate,
     required this.backgroundColor,
     required this.foregroundColor,
+    this.overlayVisibility = const CardOverlayVisibility(),
   });
 
   final BankInfo? bank;
@@ -33,6 +36,7 @@ class WalletCardFace extends StatelessWidget {
   final String expiryDate;
   final Color backgroundColor;
   final Color foregroundColor;
+  final CardOverlayVisibility overlayVisibility;
 
   @override
   Widget build(BuildContext context) {
@@ -43,32 +47,34 @@ class WalletCardFace extends StatelessWidget {
 
     return Stack(
       children: [
-        Positioned(
-          left: 4,
-          bottom: 22,
-          child: RotatedBox(
-            quarterTurns: 3,
-            child: Text(
-              '${categoryName.toUpperCase()} CARD',
-              style: AppTypography.overline(
-                fontSize: 9,
-                color: tertiaryForeground,
-              ).copyWith(fontWeight: FontWeight.w600, letterSpacing: 1.5),
+        if (overlayVisibility.shows(CardOverlay.category))
+          Positioned(
+            left: 4,
+            bottom: 22,
+            child: RotatedBox(
+              quarterTurns: 3,
+              child: Text(
+                '${categoryName.toUpperCase()} CARD',
+                style: AppTypography.overline(
+                  fontSize: 9,
+                  color: tertiaryForeground,
+                ).copyWith(fontWeight: FontWeight.w600, letterSpacing: 1.5),
+              ),
             ),
           ),
-        ),
-        Positioned(
-          right: 18,
-          top: 0,
-          bottom: 0,
-          child: Center(
-            child: Icon(
-              Icons.contactless,
-              color: secondaryForeground,
-              size: 34,
+        if (overlayVisibility.shows(CardOverlay.contactless))
+          Positioned(
+            right: 18,
+            top: 0,
+            bottom: 0,
+            child: Center(
+              child: Icon(
+                Icons.contactless,
+                color: secondaryForeground,
+                size: 34,
+              ),
             ),
           ),
-        ),
         Padding(
           padding: const EdgeInsets.fromLTRB(25, 22, 12, 22),
           child: Column(
@@ -82,43 +88,59 @@ class WalletCardFace extends StatelessWidget {
                       alignment: Alignment.centerLeft,
                       child: issuer == null
                           ? const SizedBox.shrink()
-                          : BankLogo(
-                              bank: issuer,
-                              size: 30,
-                              useSmall: false,
-                              backgroundColor: backgroundColor,
-                              foregroundColor: foregroundColor,
-                              maxWidth: 150,
+                          : CardOverlaySlot(
+                              visible: overlayVisibility.shows(
+                                CardOverlay.bankLogo,
+                              ),
+                              child: BankLogo(
+                                bank: issuer,
+                                size: 30,
+                                useSmall: false,
+                                backgroundColor: backgroundColor,
+                                foregroundColor: foregroundColor,
+                                maxWidth: 150,
+                              ),
                             ),
                     ),
                   ),
                   Expanded(
                     child: Align(
                       alignment: Alignment.centerRight,
-                      child: Text(
-                        nickname,
-                        style: AppTypography.label(
-                          fontSize: 16,
-                          color: secondaryForeground,
+                      child: CardOverlaySlot(
+                        visible: overlayVisibility.shows(CardOverlay.nickname),
+                        child: Text(
+                          nickname,
+                          style: AppTypography.label(
+                            fontSize: 16,
+                            color: secondaryForeground,
+                          ),
+                          textAlign: TextAlign.right,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
                         ),
-                        textAlign: TextAlign.right,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
                       ),
                     ),
                   ),
                 ],
               ),
               const Spacer(),
-              Transform.translate(
-                offset: const Offset(0, 12),
-                child: Text(
-                  cardNumber,
-                  style: AppTypography.mono(
-                    fontSize: 18,
-                    fontWeight: FontWeight.w500,
-                    color: foregroundColor,
-                    letterSpacing: 2,
+              CardOverlaySlot(
+                visible: overlayVisibility.shows(CardOverlay.cardNumber),
+                child: Transform.translate(
+                  offset: const Offset(0, 12),
+                  child: FittedBox(
+                    fit: BoxFit.scaleDown,
+                    alignment: Alignment.centerLeft,
+                    child: Text(
+                      cardNumber,
+                      maxLines: 1,
+                      style: AppTypography.mono(
+                        fontSize: 18,
+                        fontWeight: FontWeight.w500,
+                        color: foregroundColor,
+                        letterSpacing: 2,
+                      ),
+                    ),
                   ),
                 ),
               ),
@@ -131,62 +153,75 @@ class WalletCardFace extends StatelessWidget {
                       crossAxisAlignment: CrossAxisAlignment.end,
                       children: [
                         Flexible(
-                          child: FittedBox(
-                            fit: BoxFit.scaleDown,
-                            alignment: Alignment.centerLeft,
-                            child: Text(
-                              cardholderName.toUpperCase(),
-                              style: AppTypography.label(
-                                fontSize: 14,
-                                color: foregroundColor,
+                          child: CardOverlaySlot(
+                            visible: overlayVisibility.shows(
+                              CardOverlay.cardholderName,
+                            ),
+                            child: FittedBox(
+                              fit: BoxFit.scaleDown,
+                              alignment: Alignment.centerLeft,
+                              child: Text(
+                                cardholderName.toUpperCase(),
+                                style: AppTypography.label(
+                                  fontSize: 14,
+                                  color: foregroundColor,
+                                ),
+                                maxLines: 1,
                               ),
-                              maxLines: 1,
                             ),
                           ),
                         ),
                         const SizedBox(width: 28),
-                        Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Text(
-                              'VALID\nTHRU',
-                              style: AppTypography.overline(
-                                fontSize: 8,
-                                color: tertiaryForeground,
-                              ).copyWith(height: 1.2),
-                            ),
-                            const SizedBox(width: 6),
-                            Text(
-                              expiryDate,
-                              style: AppTypography.label(
-                                fontSize: 12,
-                                color: foregroundColor,
+                        CardOverlaySlot(
+                          visible: overlayVisibility.shows(
+                            CardOverlay.expiryDate,
+                          ),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Text(
+                                'VALID\nTHRU',
+                                style: AppTypography.overline(
+                                  fontSize: 8,
+                                  color: tertiaryForeground,
+                                ).copyWith(height: 1.2),
                               ),
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                          ],
+                              const SizedBox(width: 6),
+                              Text(
+                                expiryDate,
+                                style: AppTypography.label(
+                                  fontSize: 12,
+                                  color: foregroundColor,
+                                ),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            ],
+                          ),
                         ),
                       ],
                     ),
                   ),
                   const SizedBox(width: 12),
-                  SizedBox(
-                    height: 64,
-                    child: Align(
-                      alignment: Alignment.bottomRight,
-                      widthFactor: 1,
-                      child: Transform.translate(
-                        offset: Offset(
-                          0,
-                          network == CardNetwork.rupay ? 0 : 16,
-                        ),
-                        child: CardNetworkLogo(
-                          cardNumber: '',
-                          forceNetwork: network,
-                          height: 64,
-                          maxWidth: 100,
-                          backgroundColor: backgroundColor,
+                  CardOverlaySlot(
+                    visible: overlayVisibility.shows(CardOverlay.networkLogo),
+                    child: SizedBox(
+                      height: 64,
+                      child: Align(
+                        alignment: Alignment.bottomRight,
+                        widthFactor: 1,
+                        child: Transform.translate(
+                          offset: Offset(
+                            0,
+                            network == CardNetwork.rupay ? 0 : 16,
+                          ),
+                          child: CardNetworkLogo(
+                            cardNumber: '',
+                            forceNetwork: network,
+                            height: 64,
+                            maxWidth: 100,
+                            backgroundColor: backgroundColor,
+                          ),
                         ),
                       ),
                     ),

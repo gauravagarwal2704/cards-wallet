@@ -622,6 +622,8 @@ Map<String, dynamic> _toPlaintextCard(
     'customGradientAngle': card['customGradientAngle'],
     'hasCustomBackgroundImage': card['customBackgroundImagePath'] != null,
     'backgroundImageBlur': card['backgroundImageBlur'],
+    'backgroundImagePlacement': card['backgroundImagePlacement'],
+    'hiddenCardOverlays': card['hiddenCardOverlays'],
     'notes': card['notes'],
     'groupId': card['groupId'],
     'attachmentIds': card['attachmentIds'],

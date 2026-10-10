@@ -714,6 +714,7 @@ class _PeekLayer extends StatelessWidget {
           customGradientAngle: card.customGradientAngle,
           customBackgroundImagePath: card.customBackgroundImagePath,
           backgroundImageBlur: card.backgroundImageBlur,
+          backgroundImagePlacement: card.backgroundImagePlacement,
           fallbackPrimaryColor: primaryColor,
           fallbackSecondaryColor: secondaryColor,
           borderRadius: BorderRadius.circular(14),

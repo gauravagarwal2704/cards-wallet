@@ -204,7 +204,7 @@ void main() {
     );
 
     final images = tester.widgetList<Image>(find.byType(Image)).toList();
-    expect(images, hasLength(2));
+    expect(images, hasLength(1));
     for (final image in images) {
       expect(image.image, isA<ResizeImage>());
       final resized = image.image as ResizeImage;
