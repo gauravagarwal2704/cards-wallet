@@ -4,6 +4,9 @@ import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 
 import '../data/card_designs.dart';
+import '../models/card_image_placement.dart';
+import '../models/card_overlay_visibility.dart';
+import 'card_image_alignment_editor.dart';
 import '../theme/app_typography.dart';
 import 'card_background_surface.dart';
 
@@ -25,6 +28,11 @@ class CardBackgroundPicker extends StatelessWidget {
   final ValueChanged<double> onGradientAngleChanged;
   final ValueChanged<String?> onCustomImageChanged;
   final ValueChanged<double> onBackgroundImageBlurChanged;
+  final CardImagePlacement imagePlacement;
+  final ValueChanged<CardImagePlacement>? onImagePlacementChanged;
+  final Widget Function(CardImagePlacement)? imagePreviewBuilder;
+  final CardOverlayVisibility overlayVisibility;
+  final ValueChanged<CardOverlayVisibility>? onOverlayVisibilityChanged;
 
   const CardBackgroundPicker({
     super.key,
@@ -43,6 +51,11 @@ class CardBackgroundPicker extends StatelessWidget {
     required this.onGradientAngleChanged,
     required this.onCustomImageChanged,
     required this.onBackgroundImageBlurChanged,
+    this.imagePlacement = const CardImagePlacement(),
+    this.onImagePlacementChanged,
+    this.imagePreviewBuilder,
+    this.overlayVisibility = const CardOverlayVisibility(),
+    this.onOverlayVisibilityChanged,
   });
 
   @override
@@ -57,6 +70,41 @@ class CardBackgroundPicker extends StatelessWidget {
           CardBackgroundMode.customGradient => _buildGradientPicker(context),
           CardBackgroundMode.customImage => _buildImagePicker(context),
         },
+        if (mode == CardBackgroundMode.customImage &&
+            customImagePath?.isNotEmpty == true &&
+            onOverlayVisibilityChanged != null) ...[
+          const SizedBox(height: 16),
+          Text('Show on card', style: Theme.of(context).textTheme.titleSmall),
+          const SizedBox(height: 8),
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: [
+              for (final overlay in CardOverlay.values)
+                FilterChip(
+                  key: ValueKey('card-overlay-${overlay.name}'),
+                  label: Text(overlay.label),
+                  selected: overlayVisibility.shows(overlay),
+                  backgroundColor: Colors.transparent,
+                  selectedColor: Theme.of(context).colorScheme.primary,
+                  checkmarkColor: Theme.of(context).colorScheme.onPrimary,
+                  labelStyle: TextStyle(
+                    color: overlayVisibility.shows(overlay)
+                        ? Theme.of(context).colorScheme.onPrimary
+                        : Theme.of(context).colorScheme.onSurface,
+                  ),
+                  side: BorderSide(
+                    color: overlayVisibility.shows(overlay)
+                        ? Theme.of(context).colorScheme.primary
+                        : Theme.of(context).colorScheme.outline,
+                  ),
+                  onSelected: (visible) => onOverlayVisibilityChanged!(
+                    overlayVisibility.withVisible(overlay, visible),
+                  ),
+                ),
+            ],
+          ),
+        ],
         if (_supportsImageBlur) ...[
           const SizedBox(height: 14),
           _buildImageBlurControl(context),
@@ -337,6 +385,37 @@ class CardBackgroundPicker extends StatelessWidget {
   Widget _buildImagePicker(BuildContext context) {
     final colors = Theme.of(context).colorScheme;
     final path = customImagePath;
+    if (path != null &&
+        path.isNotEmpty &&
+        imagePreviewBuilder != null &&
+        onImagePlacementChanged != null) {
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          CardImageAlignmentEditor(
+            path: path,
+            placement: imagePlacement,
+            onChanged: onImagePlacementChanged!,
+            previewBuilder: imagePreviewBuilder!,
+          ),
+          Wrap(
+            spacing: 12,
+            children: [
+              OutlinedButton.icon(
+                onPressed: () => _chooseImage(context),
+                icon: const Icon(Icons.photo_library_outlined),
+                label: const Text('Replace image'),
+              ),
+              TextButton.icon(
+                onPressed: () => onCustomImageChanged(null),
+                icon: const Icon(Icons.delete_outline),
+                label: const Text('Remove image'),
+              ),
+            ],
+          ),
+        ],
+      );
+    }
     return Container(
       height: 150,
       width: double.infinity,

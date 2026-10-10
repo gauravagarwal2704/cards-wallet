@@ -1,6 +1,9 @@
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
+
+import '../models/card_overlay_visibility.dart';
+
 import 'package:flutter/physics.dart';
 import 'package:flutter/services.dart';
 
@@ -10,6 +13,7 @@ import '../data/card_designs.dart';
 import 'wallet_card.dart';
 import 'bank_logo.dart';
 import 'card_network_logo.dart';
+import 'card_overlay_slot.dart';
 import 'swipeable_card.dart';
 import '../theme/app_typography.dart';
 import '../theme/app_motion.dart';
@@ -25,6 +29,7 @@ class InfiniteCardDeck extends StatefulWidget {
   final Function(int index)? onCardChanged;
   final Function(CardData card)? onCardShare;
   final Function(CardData card)? onCardDelete;
+  final Function(CardData card)? onCardEdit;
   final Set<String> selectedCardIds;
   final bool selectionMode;
   final int initialIndex;
@@ -37,6 +42,7 @@ class InfiniteCardDeck extends StatefulWidget {
     this.onCardChanged,
     this.onCardShare,
     this.onCardDelete,
+    this.onCardEdit,
     this.selectedCardIds = const {},
     this.selectionMode = false,
     this.initialIndex = 0,
@@ -439,6 +445,7 @@ class _InfiniteCardDeckState extends State<InfiniteCardDeck>
         cardHeight: scaledHeight,
         onShare: () => widget.onCardShare?.call(widget.cards[data.realIndex]),
         onDelete: () => widget.onCardDelete?.call(widget.cards[data.realIndex]),
+        onEdit: () => widget.onCardEdit?.call(widget.cards[data.realIndex]),
         child: cardWidget,
       );
     }
@@ -674,6 +681,7 @@ class _WalletCardCompact extends StatelessWidget {
         customGradientAngle: cardData.customGradientAngle,
         customBackgroundImagePath: cardData.customBackgroundImagePath,
         backgroundImageBlur: cardData.backgroundImageBlur,
+        backgroundImagePlacement: cardData.backgroundImagePlacement,
         fallbackPrimaryColor: primaryColor,
         fallbackSecondaryColor: secondaryColor,
         borderRadius: BorderRadius.circular(16),
@@ -682,10 +690,23 @@ class _WalletCardCompact extends StatelessWidget {
           children: [
             if (showCircles) _buildDecoCircles(),
             _buildContent(),
-            if (bank != null) _buildBankLogo(),
-            _buildNetworkLogo(),
-            _buildCardHeader(),
-            _buildCategoryLabel(),
+            if (bank != null &&
+                cardData.effectiveOverlayVisibility.shows(CardOverlay.bankLogo))
+              _buildBankLogo(),
+            if (cardData.effectiveOverlayVisibility.shows(
+              CardOverlay.networkLogo,
+            ))
+              _buildNetworkLogo(),
+            if (cardData.cardNickname?.isNotEmpty == true
+                ? cardData.effectiveOverlayVisibility.shows(
+                    CardOverlay.nickname,
+                  )
+                : cardData.effectiveOverlayVisibility.shows(
+                    CardOverlay.category,
+                  ))
+              _buildCardHeader(),
+            if (cardData.effectiveOverlayVisibility.shows(CardOverlay.category))
+              _buildCategoryLabel(),
           ],
         ),
       ),
@@ -752,12 +773,28 @@ class _WalletCardCompact extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         mainAxisAlignment: MainAxisAlignment.end,
         children: [
-          _buildCardNumber(),
+          CardOverlaySlot(
+            visible: cardData.effectiveOverlayVisibility.shows(
+              CardOverlay.cardNumber,
+            ),
+            child: _buildCardNumber(),
+          ),
           const SizedBox(height: 6),
           if (cardholderName != null && cardholderName!.isNotEmpty)
-            _buildCardholderName(),
+            CardOverlaySlot(
+              visible: cardData.effectiveOverlayVisibility.shows(
+                CardOverlay.cardholderName,
+              ),
+              child: _buildCardholderName(),
+            ),
           const SizedBox(height: 4),
-          if (expiryDate != null && expiryDate!.isNotEmpty) _buildExpiryDate(),
+          if (expiryDate != null && expiryDate!.isNotEmpty)
+            CardOverlaySlot(
+              visible: cardData.effectiveOverlayVisibility.shows(
+                CardOverlay.expiryDate,
+              ),
+              child: _buildExpiryDate(),
+            ),
         ],
       ),
     );

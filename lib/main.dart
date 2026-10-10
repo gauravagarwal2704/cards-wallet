@@ -17,6 +17,7 @@ import 'screens/onboarding_screen.dart';
 import 'screens/saved_cards_screen.dart';
 import 'services/security_service.dart';
 import 'services/app_log_service.dart';
+import 'services/support_purchase_service.dart';
 import 'theme/app_motion.dart';
 import 'theme/app_theme.dart';
 import 'widgets/app_icon_artwork.dart';
@@ -30,6 +31,10 @@ void main() {
       final binding = WidgetsFlutterBinding.ensureInitialized();
       AppLogService.instance.startCapture();
       unawaited(DebugLogger.initialize());
+      // Subscribe before the first screen so delayed Google Play purchases are
+      // acknowledged even if Settings is not open. Product and price queries
+      // remain lazy until the supporter page is opened.
+      unawaited(SupportPurchaseService.instance.startListening());
       binding.deferFirstFrame();
       _nativeSplashDeferred = true;
       runApp(const MyApp());

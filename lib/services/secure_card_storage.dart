@@ -1,3 +1,6 @@
+import '../models/card_overlay_visibility.dart';
+import '../models/card_image_placement.dart';
+
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
@@ -789,6 +792,12 @@ class SecureCardStorage {
           (map['customGradientAngle'] as num?)?.toDouble() ?? 135,
       backgroundImageBlur:
           (map['backgroundImageBlur'] as num?)?.toDouble() ?? 0,
+      backgroundImagePlacement: CardImagePlacement.fromJson(
+        map['backgroundImagePlacement'],
+      ),
+      overlayVisibility: CardOverlayVisibility.fromJson(
+        map['hiddenCardOverlays'],
+      ),
       notes: map['notes'] as String?,
       groupId: map['groupId'] as String?,
     );

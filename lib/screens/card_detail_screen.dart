@@ -577,10 +577,12 @@ class _CardDetailScreenState extends State<CardDetailScreen> {
         customGradientAngle: _card.customGradientAngle,
         customBackgroundImagePath: _card.customBackgroundImagePath,
         backgroundImageBlur: _card.backgroundImageBlur,
+        backgroundImagePlacement: _card.backgroundImagePlacement,
         fallbackPrimaryColor: primaryColor,
         fallbackSecondaryColor: secondaryColor,
         borderRadius: BorderRadius.circular(20),
         child: WalletCardFace(
+          overlayVisibility: _card.effectiveOverlayVisibility,
           bank: bank,
           network: _network,
           categoryName: _card.categoryName,

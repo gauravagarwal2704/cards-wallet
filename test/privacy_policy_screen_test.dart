@@ -16,6 +16,7 @@ void main() {
     expect(find.text('CardVault Privacy Policy'), findsOneWidget);
     expect(find.text('Data you choose to store'), findsOneWidget);
     expect(find.text('Camera, photos, and NFC'), findsOneWidget);
+    expect(find.text('Optional Supporter Stars'), findsOneWidget);
     expect(find.text('Retention and deletion'), findsOneWidget);
     expect(find.textContaining('SmartAI'), findsNothing);
     expect(

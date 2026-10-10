@@ -65,4 +65,7 @@ const _networkAssets = {
   'assets/networks/maestro.svg',
 };
 
-const _aboutAssets = {'assets/branding/github-mark.svg'};
+const _aboutAssets = {
+  'assets/branding/bmc-button.svg',
+  'assets/branding/github-mark.svg',
+};

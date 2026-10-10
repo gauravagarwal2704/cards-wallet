@@ -11,19 +11,22 @@ class AppTheme {
   static ThemeData build({
     required config.AppBrightnessMode brightnessMode,
     required Color seedColor,
-    DynamicSchemeVariant schemeVariant = DynamicSchemeVariant.expressive,
+    DynamicSchemeVariant schemeVariant = DynamicSchemeVariant.tonalSpot,
     bool useSystemColors = false,
+    ColorScheme? deviceColorScheme,
   }) {
     final isAmoled = brightnessMode == config.AppBrightnessMode.amoled;
     final brightness = brightnessMode == config.AppBrightnessMode.light
         ? Brightness.light
         : Brightness.dark;
 
-    var colorScheme = ColorScheme.fromSeed(
-      seedColor: seedColor,
-      brightness: brightness,
-      dynamicSchemeVariant: schemeVariant,
-    );
+    var colorScheme =
+        deviceColorScheme ??
+        ColorScheme.fromSeed(
+          seedColor: seedColor,
+          brightness: brightness,
+          dynamicSchemeVariant: schemeVariant,
+        );
 
     if (isAmoled) {
       colorScheme = colorScheme.copyWith(

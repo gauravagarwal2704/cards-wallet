@@ -1,6 +1,8 @@
 import 'dart:async';
+import 'dart:io';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../services/auth_service.dart';
@@ -30,20 +32,22 @@ class SharedPreferencesAppLockPreferenceStore
 }
 
 class AppLockProvider extends ChangeNotifier with WidgetsBindingObserver {
-  static const Duration defaultLockTimeout = Duration(seconds: 30);
+  static const Duration defaultLockTimeout = Duration(minutes: 2);
 
   bool _isAppLockEnabled = false;
   bool _isLocked = true;
   bool _isInitialized = false;
   bool _isAuthenticating = false;
   bool _isBackgrounded = false;
-  DateTime? _inactiveSince;
+  DateTime? _backgroundedSince;
   int _authenticationEpoch = 0;
   final AppLockAuthenticator _authenticator;
   final AppLockPreferenceStore _preferenceStore;
   final Duration lockTimeout;
   final DateTime Function() _now;
   final bool observeLifecycle;
+  final bool _useNativeLifecycle;
+  final MethodChannel lifecycleChannel;
 
   AppLockProvider({
     AppLockAuthenticator? authenticator,
@@ -51,10 +55,24 @@ class AppLockProvider extends ChangeNotifier with WidgetsBindingObserver {
     this.lockTimeout = defaultLockTimeout,
     DateTime Function()? now,
     this.observeLifecycle = true,
+    bool? useNativeLifecycle,
+    this.lifecycleChannel = const MethodChannel('cards_wallet/app_lifecycle'),
   }) : _authenticator = authenticator ?? AuthenticationCoordinator(),
        _preferenceStore =
            preferenceStore ?? SharedPreferencesAppLockPreferenceStore(),
-       _now = now ?? DateTime.now {
+       _now = now ?? DateTime.now,
+       _useNativeLifecycle = useNativeLifecycle ?? Platform.isAndroid {
+    if (observeLifecycle && _useNativeLifecycle) {
+      lifecycleChannel.setMethodCallHandler((call) async {
+        if (call.method == 'foregroundChanged') {
+          _handleLifecycleState(
+            call.arguments == true
+                ? AppLifecycleState.resumed
+                : AppLifecycleState.paused,
+          );
+        }
+      });
+    }
     if (observeLifecycle) WidgetsBinding.instance.addObserver(this);
     _initialize();
   }
@@ -106,11 +124,11 @@ class AppLockProvider extends ChangeNotifier with WidgetsBindingObserver {
     if (enabled) {
       // Settings authenticates this change before calling us. Enabling the
       // preference must not invalidate that already-authenticated foreground
-      // session; the next genuine background transition will lock the vault.
+      // session; a subsequent app exit is subject to the normal cooldown.
       _authenticationEpoch++;
       _isLocked = false;
       _isBackgrounded = false;
-      _inactiveSince = null;
+      _backgroundedSince = null;
     } else {
       _authenticationEpoch++;
       if (_isAuthenticating) {
@@ -118,7 +136,7 @@ class AppLockProvider extends ChangeNotifier with WidgetsBindingObserver {
       }
       _isLocked = false;
       _isBackgrounded = false;
-      _inactiveSince = null;
+      _backgroundedSince = null;
     }
 
     AppLogService.instance.action(
@@ -132,6 +150,13 @@ class AppLockProvider extends ChangeNotifier with WidgetsBindingObserver {
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
+    // Flutter's Android activity pauses while our native scanner remains
+    // visible. Use application-wide activity visibility on Android instead.
+    if (_useNativeLifecycle && state != AppLifecycleState.detached) return;
+    _handleLifecycleState(state);
+  }
+
+  void _handleLifecycleState(AppLifecycleState state) {
     if (!_isAppLockEnabled) return;
 
     AppLogService.instance.action(
@@ -142,16 +167,13 @@ class AppLockProvider extends ChangeNotifier with WidgetsBindingObserver {
 
     switch (state) {
       case AppLifecycleState.inactive:
-        // Local authentication and system permission sheets make the app
-        // inactive. Give those short interruptions a bounded grace period,
-        // but never let a real background transition keep the vault open.
-        if (!_isAuthenticating) _inactiveSince ??= _now();
+        // Permission sheets and temporary focus loss are not an app exit.
         break;
       case AppLifecycleState.hidden:
       case AppLifecycleState.paused:
       case AppLifecycleState.detached:
         _isBackgrounded = true;
-        _inactiveSince ??= _now();
+        _backgroundedSince ??= _now();
         if (!_isAuthenticating && _authenticator.isAuthenticationInProgress) {
           AppLogService.instance.action(
             'Security',
@@ -160,15 +182,19 @@ class AppLockProvider extends ChangeNotifier with WidgetsBindingObserver {
           unawaited(AppLogService.instance.flush());
           break;
         }
-        _lockNow(cancelAuthentication: true);
+        // Preserve an unlocked session during a short app exit. Only an
+        // authentication still in flight must be invalidated immediately.
+        if (_isAuthenticating || state == AppLifecycleState.detached) {
+          _lockNow(cancelAuthentication: true);
+        }
         unawaited(AppLogService.instance.flush());
         break;
       case AppLifecycleState.resumed:
-        final inactiveSince = _inactiveSince;
+        final backgroundedSince = _backgroundedSince;
         _isBackgrounded = false;
-        _inactiveSince = null;
-        if (inactiveSince != null &&
-            _now().difference(inactiveSince) >= lockTimeout) {
+        _backgroundedSince = null;
+        if (backgroundedSince != null &&
+            _now().difference(backgroundedSince) >= lockTimeout) {
           _lockNow(cancelAuthentication: true);
         }
         break;
@@ -192,7 +218,7 @@ class AppLockProvider extends ChangeNotifier with WidgetsBindingObserver {
           _isAppLockEnabled &&
           !_isBackgrounded) {
         _isLocked = false;
-        _inactiveSince = null;
+        _backgroundedSince = null;
         AppLogService.instance.action('Security', 'Vault unlocked');
         return true;
       }
@@ -231,6 +257,9 @@ class AppLockProvider extends ChangeNotifier with WidgetsBindingObserver {
     _authenticationEpoch++;
     if (_isAuthenticating) {
       unawaited(_authenticator.cancelAuthentication());
+    }
+    if (observeLifecycle && _useNativeLifecycle) {
+      lifecycleChannel.setMethodCallHandler(null);
     }
     if (observeLifecycle) WidgetsBinding.instance.removeObserver(this);
     super.dispose();

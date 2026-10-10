@@ -11,7 +11,10 @@ CardData _card(int index) => CardData(
   id: 'card-$index',
 );
 
-Widget _deck({ValueChanged<int>? onCardChanged}) {
+Widget _deck({
+  ValueChanged<int>? onCardChanged,
+  ValueChanged<CardData>? onCardEdit,
+}) {
   return MaterialApp(
     home: Scaffold(
       body: Center(
@@ -21,6 +24,7 @@ Widget _deck({ValueChanged<int>? onCardChanged}) {
           child: InfiniteCardDeck(
             cards: List.generate(8, _card),
             onCardChanged: onCardChanged,
+            onCardEdit: onCardEdit,
           ),
         ),
       ),
@@ -29,6 +33,25 @@ Widget _deck({ValueChanged<int>? onCardChanged}) {
 }
 
 void main() {
+  testWidgets('swipe Edit targets the focused card and closes the tray', (
+    tester,
+  ) async {
+    CardData? edited;
+    await tester.pumpWidget(_deck(onCardEdit: (card) => edited = card));
+    await tester.pump();
+    await tester.drag(
+      find.byKey(const ValueKey('deck-swipe-card-0')),
+      const Offset(-180, 0),
+    );
+    await tester.pumpAndSettle();
+    expect(find.text('Share'), findsOneWidget);
+    expect(find.text('Delete'), findsOneWidget);
+    await tester.tap(find.text('Edit'));
+    await tester.pumpAndSettle();
+    expect(edited?.id, 'card-0');
+    expect(find.text('Edit'), findsNothing);
+    expect(tester.takeException(), isNull);
+  });
   testWidgets('large decks render a bounded seven-card depth window', (
     tester,
   ) async {

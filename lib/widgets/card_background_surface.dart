@@ -1,10 +1,11 @@
-import 'dart:io';
 import 'dart:math' as math;
 import 'dart:ui' show ImageFilter, TileMode;
 
 import 'package:flutter/material.dart';
 
 import '../data/card_designs.dart';
+import '../models/card_image_placement.dart';
+import 'card_custom_image.dart';
 import '../utils/card_contrast.dart';
 import '../utils/image_utils.dart';
 
@@ -17,6 +18,7 @@ class CardBackgroundSurface extends StatelessWidget {
   final double customGradientAngle;
   final String? customBackgroundImagePath;
   final double backgroundImageBlur;
+  final CardImagePlacement backgroundImagePlacement;
   final Color fallbackPrimaryColor;
   final Color fallbackSecondaryColor;
   final BorderRadius borderRadius;
@@ -31,6 +33,7 @@ class CardBackgroundSurface extends StatelessWidget {
     this.customGradientAngle = 135,
     this.customBackgroundImagePath,
     this.backgroundImageBlur = 0,
+    this.backgroundImagePlacement = const CardImagePlacement(),
     required this.fallbackPrimaryColor,
     required this.fallbackSecondaryColor,
     required this.borderRadius,
@@ -84,7 +87,9 @@ class CardBackgroundSurface extends StatelessWidget {
         boxShadow: showShadow
             ? [
                 BoxShadow(
-                  color: primaryColor.withValues(alpha: 0.28),
+                  color: (hasImage ? Colors.black : primaryColor).withValues(
+                    alpha: 0.28,
+                  ),
                   blurRadius: 20,
                   offset: const Offset(0, 10),
                 ),
@@ -102,19 +107,22 @@ class CardBackgroundSurface extends StatelessWidget {
             return Stack(
               fit: StackFit.expand,
               children: [
-                DecoratedBox(
-                  decoration: BoxDecoration(
-                    gradient: LinearGradient(
-                      begin: Alignment.topLeft,
-                      end: Alignment.bottomRight,
-                      colors: colors,
-                      transform: GradientRotation(
-                        customGradientAngle * math.pi / 180,
+                if (hasImage)
+                  const ColoredBox(color: Color(0xFF111318))
+                else
+                  DecoratedBox(
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(
+                        begin: Alignment.topLeft,
+                        end: Alignment.bottomRight,
+                        colors: colors,
+                        transform: GradientRotation(
+                          customGradientAngle * math.pi / 180,
+                        ),
                       ),
                     ),
                   ),
-                ),
-                if (design != null)
+                if (design != null && !hasImage)
                   _buildImageLayer(
                     Image.asset(
                       design!.assetPath,
@@ -127,12 +135,10 @@ class CardBackgroundSurface extends StatelessWidget {
                   ),
                 if (hasImage)
                   _buildImageLayer(
-                    Image.file(
-                      File(imagePath),
-                      fit: BoxFit.cover,
-                      gaplessPlayback: true,
+                    CardCustomImage(
+                      path: imagePath,
+                      placement: backgroundImagePlacement,
                       cacheWidth: cacheWidth,
-                      errorBuilder: (_, _, _) => const SizedBox.shrink(),
                     ),
                     blur: true,
                   ),

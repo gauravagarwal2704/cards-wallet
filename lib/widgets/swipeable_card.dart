@@ -1,13 +1,17 @@
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
 import 'package:flutter/physics.dart';
 
 import '../theme/app_typography.dart';
 import '../theme/app_motion.dart';
+import '../theme/app_colors.dart';
 
 class SwipeableCard extends StatefulWidget {
   final Widget child;
   final VoidCallback? onShare;
   final VoidCallback? onDelete;
+  final VoidCallback? onEdit;
   final double cardWidth;
   final double cardHeight;
 
@@ -16,6 +20,7 @@ class SwipeableCard extends StatefulWidget {
     required this.child,
     this.onShare,
     this.onDelete,
+    this.onEdit,
     required this.cardWidth,
     required this.cardHeight,
   });
@@ -117,6 +122,13 @@ class _SwipeableCardState extends State<SwipeableCard>
     });
   }
 
+  void _handleEdit() {
+    _closeSwipe();
+    Future.delayed(const Duration(milliseconds: 300), () {
+      if (mounted) widget.onEdit?.call();
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
     final isOpen = _dragOffset < -0.1;
@@ -162,29 +174,45 @@ class _SwipeableCardState extends State<SwipeableCard>
   }
 
   Widget _buildActionButtons(double progress) {
+    final scheme = Theme.of(context).colorScheme;
     return Positioned.fill(
       child: Padding(
-        padding: EdgeInsets.only(left: widget.cardWidth * 0.3),
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.start,
-          children: [
-            const SizedBox(width: 20),
-            _buildActionButton(
-              icon: Icons.share_outlined,
-              label: 'Share',
-              color: const Color(0xFF0EA5E9),
-              onTap: _handleShare,
-              progress: progress,
-            ),
-            const SizedBox(width: 16),
-            _buildActionButton(
-              icon: Icons.delete_outline,
-              label: 'Delete',
-              color: const Color(0xFFEF4444),
-              onTap: _handleDelete,
-              progress: progress,
-            ),
-          ],
+        padding: EdgeInsets.only(left: widget.cardWidth * 0.25 + 8, right: 8),
+        child: LayoutBuilder(
+          builder: (context, constraints) {
+            final size = math.min(70.0, (constraints.maxWidth - 16) / 3);
+            return Row(
+              mainAxisAlignment: MainAxisAlignment.start,
+              children: [
+                _buildActionButton(
+                  icon: Icons.share_outlined,
+                  label: 'Share',
+                  color: scheme.primary,
+                  size: size,
+                  onTap: _handleShare,
+                  progress: progress,
+                ),
+                const SizedBox(width: 8),
+                _buildActionButton(
+                  icon: Icons.delete_outline,
+                  label: 'Delete',
+                  color: scheme.error,
+                  size: size,
+                  onTap: _handleDelete,
+                  progress: progress,
+                ),
+                const SizedBox(width: 8),
+                _buildActionButton(
+                  icon: Icons.edit_outlined,
+                  label: 'Edit',
+                  color: AppSemanticColors.of(context).info,
+                  size: size,
+                  onTap: _handleEdit,
+                  progress: progress,
+                ),
+              ],
+            );
+          },
         ),
       ),
     );
@@ -194,6 +222,7 @@ class _SwipeableCardState extends State<SwipeableCard>
     required IconData icon,
     required String label,
     required Color color,
+    required double size,
     required VoidCallback onTap,
     required double progress,
   }) {
@@ -201,30 +230,26 @@ class _SwipeableCardState extends State<SwipeableCard>
       opacity: progress,
       child: Transform.scale(
         scale: 0.8 + (progress * 0.2),
-        child: GestureDetector(
-          onTap: onTap,
-          child: Container(
-            width: 70,
-            height: 70,
-            decoration: BoxDecoration(
-              color: color,
-              shape: BoxShape.circle,
-              boxShadow: [
-                BoxShadow(
-                  color: color.withValues(alpha: 0.3),
-                  blurRadius: 8,
-                  offset: const Offset(0, 2),
-                ),
-              ],
+        child: SizedBox.square(
+          dimension: size,
+          child: OutlinedButton(
+            onPressed: onTap,
+            style: OutlinedButton.styleFrom(
+              foregroundColor: color,
+              backgroundColor: Colors.transparent,
+              side: BorderSide(color: color, width: 1.5),
+              shape: const CircleBorder(),
+              padding: EdgeInsets.zero,
+              minimumSize: Size.zero,
             ),
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                Icon(icon, color: Colors.white, size: 24),
+                Icon(icon, color: color, size: size < 60 ? 20 : 24),
                 const SizedBox(height: 4),
                 Text(
                   label,
-                  style: AppTypography.overline(color: Colors.white)
+                  style: AppTypography.overline(color: color)
                       .copyWith(fontWeight: FontWeight.w600),
                 ),
               ],

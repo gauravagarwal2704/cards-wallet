@@ -37,7 +37,7 @@ class AppearanceScreen extends StatelessWidget {
           const SizedBox(height: AppSpacing.xxl),
           AppSection(
             title: 'Palette style',
-            description: 'Compare a focused palette with a more colorful one. Device colors still follow your system.',
+            description: 'Compare both styles using the same base color. Device colors keep your system style.',
             child: _PaletteStrategySelector(provider: provider),
           ),
           const SizedBox(height: AppSpacing.xxl),
@@ -366,29 +366,17 @@ class _PaletteStrategySelector extends StatelessWidget {
   Widget build(BuildContext context) {
     return LayoutBuilder(
       builder: (context, constraints) {
-        final textScale = MediaQuery.textScalerOf(context).scale(1);
-        final stacked = constraints.maxWidth < 430 || textScale >= 1.5;
         final cards = [
           for (final strategy in config.AppPaletteStrategy.values)
             _PaletteStrategyCard(
               strategy: strategy,
               selected: provider.paletteStrategy == strategy,
-              seedColor: provider.seedColor,
+              seedColor: provider.usesSystemColors
+                  ? provider.colorScheme.primary
+                  : provider.seedColor,
               onTap: () => provider.setPaletteStrategy(strategy),
             ),
         ];
-
-        if (stacked) {
-          return Column(
-            children: [
-              for (var index = 0; index < cards.length; index++) ...[
-                cards[index],
-                if (index != cards.length - 1)
-                  const SizedBox(height: AppSpacing.sm),
-              ],
-            ],
-          );
-        }
 
         return Row(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -426,26 +414,20 @@ class _PaletteStrategyCard extends StatelessWidget {
     );
 
     return AppSurface(
+      key: ValueKey('palette-style-${strategy.name}'),
       onTap: onTap,
       semanticLabel: '${strategy.label}. ${strategy.description}',
       selected: selected,
       color: selected ? scheme.primaryContainer : scheme.surfaceContainerLow,
-      border: BorderSide(
-        color: selected ? scheme.primary : scheme.outlineVariant,
-        width: selected ? 2 : 1,
-      ),
-      shape: selected ? AppShapes.large : AppShapes.medium,
-      padding: const EdgeInsets.all(AppSpacing.md),
+      border: selected
+          ? BorderSide.none
+          : BorderSide(color: scheme.outlineVariant),
+      shape: AppShapes.medium,
+      padding: const EdgeInsets.all(AppSpacing.sm),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(
-            children: [
-              _PreviewDot(color: preview.primary),
-              _PreviewDot(color: preview.secondary),
-              _PreviewDot(color: preview.tertiary),
-            ],
-          ),
+          _PaletteStylePreview(scheme: preview),
           const SizedBox(height: AppSpacing.sm),
           Text(
             strategy.label,
@@ -466,6 +448,66 @@ class _PaletteStrategyCard extends StatelessWidget {
       ),
     );
   }
+}
+
+class _PaletteStylePreview extends StatelessWidget {
+  const _PaletteStylePreview({required this.scheme});
+  final ColorScheme scheme;
+
+  @override
+  Widget build(BuildContext context) => Container(
+    padding: const EdgeInsets.all(8),
+    decoration: ShapeDecoration(color: scheme.surface, shape: AppShapes.medium),
+    child: Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text('Buttons', style: AppTypography.caption(color: scheme.onSurface)),
+        const SizedBox(height: 4),
+        Row(
+          children: [
+            for (final colors in [
+              (scheme.primary, scheme.onPrimary),
+              (scheme.secondary, scheme.onSecondary),
+              (scheme.tertiary, scheme.onTertiary),
+            ])
+              Expanded(
+                child: Container(
+                  height: 28,
+                  margin: const EdgeInsets.symmetric(horizontal: 2),
+                  decoration: ShapeDecoration(
+                    color: colors.$1,
+                    shape: AppShapes.pill,
+                  ),
+                  child: Icon(Icons.check_rounded, size: 16, color: colors.$2),
+                ),
+              ),
+          ],
+        ),
+        const SizedBox(height: 8),
+        Text('Surfaces', style: AppTypography.caption(color: scheme.onSurface)),
+        const SizedBox(height: 4),
+        Row(
+          children: [
+            for (final color in [
+              scheme.primaryContainer,
+              scheme.secondaryContainer,
+              scheme.tertiaryContainer,
+            ])
+              Expanded(
+                child: Container(
+                  height: 24,
+                  margin: const EdgeInsets.symmetric(horizontal: 2),
+                  decoration: ShapeDecoration(
+                    color: color,
+                    shape: AppShapes.medium,
+                  ),
+                ),
+              ),
+          ],
+        ),
+      ],
+    ),
+  );
 }
 
 class _ModeGrid extends StatelessWidget {
@@ -610,19 +652,21 @@ class _SystemColorTile extends StatelessWidget {
     final scheme = Theme.of(context).colorScheme;
     final selected = provider.usesSystemColors;
     return AppSurface(
+      key: const ValueKey('device-colors-tile'),
       onTap: provider.useSystemColorSource,
       semanticLabel: 'Device colors, uses wallpaper or system accent',
       selected: selected,
       color: selected ? scheme.secondaryContainer : scheme.surfaceContainerLow,
-      border: BorderSide(
-        color: selected ? scheme.secondary : scheme.outlineVariant,
-        width: selected ? 2 : 1,
-      ),
+      border: selected
+          ? BorderSide.none
+          : BorderSide(color: scheme.outlineVariant),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      shape: AppShapes.medium,
       child: Row(
         children: [
           Container(
-            width: 48,
-            height: 48,
+            width: 36,
+            height: 36,
             decoration: ShapeDecoration(
               gradient: SweepGradient(
                 colors: [
@@ -636,7 +680,7 @@ class _SystemColorTile extends StatelessWidget {
             ),
             child: Icon(Icons.wallpaper_rounded, color: scheme.onPrimary),
           ),
-          const SizedBox(width: AppSpacing.sm),
+          const SizedBox(width: AppSpacing.xs),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -651,7 +695,9 @@ class _SystemColorTile extends StatelessWidget {
                 ),
                 const SizedBox(height: AppSpacing.xxs),
                 Text(
-                  'Uses your wallpaper or system accent when available',
+                  selected && !provider.hasDeviceColors
+                      ? 'Unavailable here; using Indigo'
+                      : 'Wallpaper and system colors',
                   style: AppTypography.caption(
                     color: selected
                         ? scheme.onSecondaryContainer.withValues(alpha: 0.78)
@@ -680,10 +726,11 @@ class _PaletteGrid extends StatelessWidget {
   Widget build(BuildContext context) {
     return LayoutBuilder(
       builder: (context, constraints) {
-        final width = (constraints.maxWidth - AppSpacing.xs) / 2;
+        const gap = AppSpacing.sm;
+        final width = (constraints.maxWidth - gap * 2) / 3;
         return Wrap(
-          spacing: AppSpacing.xs,
-          runSpacing: AppSpacing.xs,
+          spacing: gap,
+          runSpacing: gap,
           children: [
             for (final option in config.AccentColorOption.featuredPresets)
               SizedBox(
@@ -725,49 +772,56 @@ class _PaletteTile extends StatelessWidget {
       dynamicSchemeVariant: schemeVariant,
     );
     return AppSurface(
+      key: ValueKey('color-theme-${option.id}'),
       onTap: onTap,
       semanticLabel: '${option.name} color palette',
       selected: selected,
       color: selected ? scheme.primaryContainer : scheme.surfaceContainerLow,
-      shape: selected ? AppShapes.large : AppShapes.medium,
-      border: BorderSide(
-        color: selected ? scheme.primary : scheme.outlineVariant,
-        width: selected ? 2 : 1,
-      ),
+      shape: AppShapes.medium,
+      border: selected
+          ? BorderSide.none
+          : BorderSide(color: scheme.outlineVariant),
       padding: const EdgeInsets.symmetric(
-        horizontal: AppSpacing.sm,
-        vertical: AppSpacing.sm,
+        horizontal: AppSpacing.xs,
+        vertical: AppSpacing.xs,
       ),
-      child: Row(
+      child: Column(
         children: [
           SizedBox(
-            width: 52,
-            height: 34,
-            child: Stack(
-              children: [
-                _paletteDot(palette.primary, 0),
-                _paletteDot(palette.secondary, 14),
-                _paletteDot(palette.tertiary, 28),
-              ],
-            ),
-          ),
-          const SizedBox(width: AppSpacing.xs),
-          Expanded(
-            child: Text(
-              option.name,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: AppTypography.label(
-                color: selected ? scheme.onPrimaryContainer : scheme.onSurface,
+            height: 30,
+            child: FittedBox(
+              fit: BoxFit.scaleDown,
+              child: SizedBox(
+                width: 58,
+                height: 30,
+                child: Stack(
+                  children: [
+                    _paletteDot(palette.primary, 0),
+                    _paletteDot(palette.secondary, 14),
+                    _paletteDot(palette.tertiary, 28),
+                  ],
+                ),
               ),
             ),
           ),
-          if (selected)
-            Icon(
-              Icons.check_rounded,
-              size: 18,
-              color: scheme.onPrimaryContainer,
+          const SizedBox(height: AppSpacing.xxs),
+          SizedBox(
+            height: MediaQuery.textScalerOf(context).scale(12) * 1.35 * 2,
+            child: Center(
+              child: Text(
+                option.name,
+                textAlign: TextAlign.center,
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+                style: AppTypography.label(
+                  fontSize: 12,
+                  color: selected
+                      ? scheme.onPrimaryContainer
+                      : scheme.onSurface,
+                ),
+              ),
             ),
+          ),
         ],
       ),
     );
@@ -809,10 +863,9 @@ class _CustomColorTile extends StatelessWidget {
       semanticLabel: 'Create a custom color palette',
       selected: selected,
       color: selected ? scheme.tertiaryContainer : scheme.surfaceContainerLow,
-      border: BorderSide(
-        color: selected ? scheme.tertiary : scheme.outlineVariant,
-        width: selected ? 2 : 1,
-      ),
+      border: selected
+          ? BorderSide.none
+          : BorderSide(color: scheme.outlineVariant),
       child: Row(
         children: [
           Container(

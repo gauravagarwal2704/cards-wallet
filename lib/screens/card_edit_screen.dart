@@ -5,6 +5,8 @@ import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 
 import '../models/card_data.dart';
+import '../models/card_image_placement.dart';
+import '../models/card_overlay_visibility.dart';
 import '../models/card_group.dart';
 import '../data/banks.dart';
 import '../data/card_designs.dart';
@@ -83,6 +85,8 @@ class _CardEditScreenState extends State<CardEditScreen> {
   double _customGradientAngle = 135;
   String? _customBackgroundImagePath;
   double _backgroundImageBlur = 0;
+  CardImagePlacement _backgroundImagePlacement = const CardImagePlacement();
+  CardOverlayVisibility _overlayVisibility = const CardOverlayVisibility();
   String? _detectedCardType;
   bool _isLoading = false;
   bool _isInitialized = false;
@@ -178,6 +182,8 @@ class _CardEditScreenState extends State<CardEditScreen> {
           _customGradientAngle = card.customGradientAngle;
           _customBackgroundImagePath = card.customBackgroundImagePath;
           _backgroundImageBlur = card.backgroundImageBlur;
+          _backgroundImagePlacement = card.backgroundImagePlacement;
+          _overlayVisibility = card.overlayVisibility;
           if (card.customBackgroundImagePath != null) {
             _backgroundMode = CardBackgroundMode.customImage;
           } else if (card.customGradientStartColor != null &&
@@ -363,6 +369,8 @@ class _CardEditScreenState extends State<CardEditScreen> {
           customGradientAngle: _customGradientAngle,
           customBackgroundImagePath: persistedBackgroundPath,
           backgroundImageBlur: _effectiveBackgroundImageBlur,
+          backgroundImagePlacement: _backgroundImagePlacement,
+          overlayVisibility: _overlayVisibility,
           clearDesign:
               _backgroundMode != CardBackgroundMode.catalog ||
               _selectedDesign == null,
@@ -431,6 +439,8 @@ class _CardEditScreenState extends State<CardEditScreen> {
           customGradientAngle: _customGradientAngle,
           customBackgroundImagePath: persistedBackgroundPath,
           backgroundImageBlur: _effectiveBackgroundImageBlur,
+          backgroundImagePlacement: _backgroundImagePlacement,
+          overlayVisibility: _overlayVisibility,
           notes: notes,
           attachmentIds: const [],
           groupId: _selectedGroup?.id,
@@ -649,7 +659,7 @@ class _CardEditScreenState extends State<CardEditScreen> {
     );
   }
 
-  Widget _buildPreviewCard() {
+  Widget _buildPreviewCard({CardImagePlacement? imagePlacement}) {
     final themeProvider = context.watch<ThemeProvider>();
     final primaryColor =
         _selectedDesign?.primaryColor ??
@@ -699,10 +709,14 @@ class _CardEditScreenState extends State<CardEditScreen> {
               ? _customBackgroundImagePath
               : null,
           backgroundImageBlur: _effectiveBackgroundImageBlur,
+          backgroundImagePlacement: imagePlacement ?? _backgroundImagePlacement,
           fallbackPrimaryColor: primaryColor,
           fallbackSecondaryColor: secondaryColor,
           borderRadius: BorderRadius.circular(20),
           child: WalletCardFace(
+            overlayVisibility: _backgroundMode == CardBackgroundMode.customImage
+                ? _overlayVisibility
+                : const CardOverlayVisibility(),
             bank: _selectedBank,
             network: _detectedNetwork,
             categoryName: _cardCategory == CardCategory.credit
@@ -1053,6 +1067,14 @@ class _CardEditScreenState extends State<CardEditScreen> {
       gradientAngle: _customGradientAngle,
       customImagePath: _customBackgroundImagePath,
       backgroundImageBlur: _backgroundImageBlur,
+      imagePlacement: _backgroundImagePlacement,
+      overlayVisibility: _overlayVisibility,
+      onOverlayVisibilityChanged: (visibility) =>
+          setState(() => _overlayVisibility = visibility),
+      onImagePlacementChanged: (placement) =>
+          setState(() => _backgroundImagePlacement = placement),
+      imagePreviewBuilder: (placement) =>
+          _buildPreviewCard(imagePlacement: placement),
       onModeChanged: (mode) => setState(() => _backgroundMode = mode),
       onStyleChanged: (style) {
         setState(() {
@@ -1069,8 +1091,10 @@ class _CardEditScreenState extends State<CardEditScreen> {
       },
       onGradientAngleChanged: (angle) =>
           setState(() => _customGradientAngle = angle),
-      onCustomImageChanged: (path) =>
-          setState(() => _customBackgroundImagePath = path),
+      onCustomImageChanged: (path) => setState(() {
+        _customBackgroundImagePath = path;
+        _backgroundImagePlacement = const CardImagePlacement();
+      }),
       onBackgroundImageBlurChanged: (blur) =>
           setState(() => _backgroundImageBlur = blur),
     );

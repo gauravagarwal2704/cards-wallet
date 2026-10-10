@@ -30,6 +30,8 @@ class MainActivity: FlutterFragmentActivity() {
     private var diagnosticsChannel: MethodChannel? = null
     private var cardTextOcrHandler: CardTextOcrHandler? = null
     private var cardScanHandler: CardScanHandler? = null
+    private var appLifecycleHandler: AppLifecycleHandler? = null
+    private var systemPaletteHandler: SystemPaletteHandler? = null
     private val iconAliases = mapOf(
         "three_d" to "MainActivityThreeD",
         "purple" to "MainActivityPurple",
@@ -68,6 +70,8 @@ class MainActivity: FlutterFragmentActivity() {
 
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
+        appLifecycleHandler?.close()
+        appLifecycleHandler = AppLifecycleHandler(application, flutterEngine)
         diagnosticsChannel = MethodChannel(
             flutterEngine.dartExecutor.binaryMessenger,
             DIAGNOSTICS_CHANNEL
@@ -202,6 +206,8 @@ class MainActivity: FlutterFragmentActivity() {
             }
         }
 
+        systemPaletteHandler?.close()
+        systemPaletteHandler = SystemPaletteHandler(this).also { it.register(flutterEngine) }
         cardTextOcrHandler?.close()
         cardTextOcrHandler = CardTextOcrHandler(applicationContext) { event, status, code ->
             emitDiagnostic(event, status, code)
@@ -225,6 +231,10 @@ class MainActivity: FlutterFragmentActivity() {
     }
 
     override fun onDestroy() {
+        systemPaletteHandler?.close()
+        systemPaletteHandler = null
+        appLifecycleHandler?.close()
+        appLifecycleHandler = null
         emitDiagnostic("Native activity destroyed")
         cardScanHandler?.close()
         cardScanHandler = null

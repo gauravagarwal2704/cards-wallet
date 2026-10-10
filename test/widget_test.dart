@@ -1,5 +1,6 @@
 import 'package:cards_wallet/main.dart';
 import 'package:cards_wallet/models/card_data.dart';
+import 'package:cards_wallet/models/app_release.dart';
 import 'package:cards_wallet/models/card_group.dart';
 import 'package:cards_wallet/providers/card_view_provider.dart';
 import 'package:cards_wallet/providers/app_lock_provider.dart';
@@ -13,6 +14,7 @@ import 'package:cards_wallet/screens/feedback_support_screen.dart';
 import 'package:cards_wallet/widgets/card_tiles_grid.dart';
 import 'package:cards_wallet/widgets/stacked_card_grid.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -96,6 +98,75 @@ Widget _home({required Future<List<CardData>> Function() cardLoader}) {
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
+
+  testWidgets(
+    'Appearance indicator follows device colors after a custom color',
+    (tester) async {
+      SharedPreferences.setMockInitialValues({'profile_display_name': 'Avery'});
+      const channel = MethodChannel('cards_wallet/appearance');
+      final messenger =
+          TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger;
+      messenger.setMockMethodCallHandler(
+        channel,
+        (_) async => {
+          for (final family in [
+            'accent1',
+            'accent2',
+            'accent3',
+            'neutral1',
+            'neutral2',
+          ])
+            family: {
+              for (final tone in [
+                0,
+                10,
+                20,
+                30,
+                40,
+                50,
+                60,
+                70,
+                80,
+                90,
+                95,
+                99,
+                100,
+              ])
+                '$tone': Color.lerp(
+                  Colors.black,
+                  Colors.white,
+                  tone / 100,
+                )!.toARGB32(),
+            },
+          'light': {'primary': 0xFF226644},
+          'dark': {'primary': 0xFF99CCAA},
+        },
+      );
+      addTearDown(() => messenger.setMockMethodCallHandler(channel, null));
+      await tester.pumpWidget(_home(cardLoader: _loadNoCards));
+      await tester.pumpAndSettle();
+      final provider = tester
+          .element(find.byType(SavedCardsScreen))
+          .read<ThemeProvider>();
+      await provider.setCustomSeedColor(const Color(0xFFAA33CC));
+      await tester.tap(find.byIcon(Icons.settings_outlined));
+      await tester.pumpAndSettle();
+      final indicator = find.byKey(const ValueKey('appearance-active-color'));
+      expect(
+        (tester.widget<Container>(indicator).decoration as BoxDecoration).color,
+        provider.getPrimaryColor(),
+      );
+      await provider.useSystemColorSource();
+      await tester.pumpAndSettle();
+      expect(provider.getPrimaryColor().toARGB32(), 0xFF226644);
+      expect(
+        (tester.widget<Container>(indicator).decoration as BoxDecoration).color,
+        provider.getPrimaryColor(),
+      );
+      expect(provider.seedColor, const Color(0xFFAA33CC));
+      expect(tester.takeException(), isNull);
+    },
+  );
 
   testWidgets('new users see onboarding and app lock defaults to enabled', (
     tester,
@@ -502,18 +573,19 @@ void main() {
     expect(find.byKey(const ValueKey('github-logo')), findsOneWidget);
     expect(find.byKey(const ValueKey('about-links-row')), findsOneWidget);
     expect(find.byKey(const ValueKey('telegram-link')), findsOneWidget);
-    expect(find.byKey(const ValueKey('buy-me-a-coffee-link')), findsOneWidget);
-    expect(find.byKey(const ValueKey('buy-me-a-chai-link')), findsOneWidget);
+    expect(find.byKey(const ValueKey('support-developer-link')), findsOneWidget);
+    expect(
+      find.byKey(const ValueKey('support-developer-app-icon')),
+      findsOneWidget,
+    );
     expect(find.text('GitHub'), findsOneWidget);
     expect(find.text('Telegram'), findsOneWidget);
-    expect(find.text('Coffee'), findsOneWidget);
-    expect(find.text('Chai'), findsOneWidget);
+    expect(find.text('Support'), findsOneWidget);
 
     final linkKeys = [
       'github-repository-link',
       'telegram-link',
-      'buy-me-a-coffee-link',
-      'buy-me-a-chai-link',
+      'support-developer-link',
     ];
     final linkCenters = linkKeys
         .map((key) => tester.getCenter(find.byKey(ValueKey(key))))
@@ -561,6 +633,21 @@ void main() {
 
     await tester.drag(find.byType(CustomScrollView), const Offset(0, -1600));
     await tester.pumpAndSettle();
+    await tester.ensureVisible(
+      find.byKey(const ValueKey('change-history-link')),
+    );
+    await tester.tap(find.byKey(const ValueKey('change-history-link')));
+    await tester.pumpAndSettle();
+    expect(find.text('Change history'), findsOneWidget);
+    expect(
+      find.text('Version ${AppRelease.history.first.version}'),
+      findsOneWidget,
+    );
+    await tester.pageBack();
+    await tester.pumpAndSettle();
+    await tester.ensureVisible(
+      find.byKey(const ValueKey('open-source-licenses-link')),
+    );
     await tester.tap(find.byKey(const ValueKey('open-source-licenses-link')));
     await tester.pumpAndSettle();
 

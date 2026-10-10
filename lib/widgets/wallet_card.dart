@@ -1,7 +1,12 @@
 import 'package:flutter/material.dart';
+
+import '../models/card_image_placement.dart';
+import '../models/card_overlay_visibility.dart';
+
 import 'package:provider/provider.dart';
 
 import 'card_network_logo.dart';
+import 'card_overlay_slot.dart';
 import 'bank_logo.dart';
 import '../models/card_data.dart';
 import '../data/banks.dart';
@@ -70,6 +75,9 @@ class WalletCard extends StatelessWidget {
          'Either data or cardData must be provided',
        );
 
+  CardOverlayVisibility get _visibility =>
+      cardData?.effectiveOverlayVisibility ?? const CardOverlayVisibility();
+
   @override
   Widget build(BuildContext context) {
     final primaryColor = _getPrimaryColor(context);
@@ -99,6 +107,9 @@ class WalletCard extends StatelessWidget {
             customGradientAngle: cardData?.customGradientAngle ?? 135,
             customBackgroundImagePath: cardData?.customBackgroundImagePath,
             backgroundImageBlur: cardData?.backgroundImageBlur ?? 0,
+            backgroundImagePlacement:
+                cardData?.backgroundImagePlacement ??
+                const CardImagePlacement(),
             fallbackPrimaryColor: primaryColor,
             fallbackSecondaryColor: secondaryColor,
             borderRadius: BorderRadius.circular(16),
@@ -110,8 +121,10 @@ class WalletCard extends StatelessWidget {
                     cardData?.customBackgroundImagePath == null)
                   _buildMastercardCircles(),
                 _buildCardContent(foregroundColor),
-                _buildNetworkLogo(),
-                if (bank != null) _buildBankLogo(primaryColor, foregroundColor),
+                if (_visibility.shows(CardOverlay.networkLogo))
+                  _buildNetworkLogo(),
+                if (bank != null && _visibility.shows(CardOverlay.bankLogo))
+                  _buildBankLogo(primaryColor, foregroundColor),
               ],
             ),
           ),
@@ -217,27 +230,36 @@ class WalletCard extends StatelessWidget {
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               Expanded(child: _buildCardTypeLabel(foregroundColor)),
-              _buildContactlessIcon(secondaryForeground),
+              CardOverlaySlot(
+                visible: _visibility.shows(CardOverlay.contactless),
+                child: _buildContactlessIcon(secondaryForeground),
+              ),
             ],
           ),
           const Spacer(),
           if (cardData != null) ...[
-            Text(
-              cardData!.maskedCardNumber,
-              style: AppTypography.mono(
-                fontSize: 13,
-                fontWeight: FontWeight.w400,
-                color: secondaryForeground,
-                letterSpacing: 1,
+            CardOverlaySlot(
+              visible: _visibility.shows(CardOverlay.cardNumber),
+              child: Text(
+                cardData!.maskedCardNumber,
+                style: AppTypography.mono(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w400,
+                  color: secondaryForeground,
+                  letterSpacing: 1,
+                ),
               ),
             ),
             const SizedBox(height: 8),
             if (cardholderName != null && cardholderName!.isNotEmpty)
-              Text(
-                cardholderName!.toUpperCase(),
-                style: AppTypography.overline(
-                  fontSize: 11,
-                  color: tertiaryForeground,
+              CardOverlaySlot(
+                visible: _visibility.shows(CardOverlay.cardholderName),
+                child: Text(
+                  cardholderName!.toUpperCase(),
+                  style: AppTypography.overline(
+                    fontSize: 11,
+                    color: tertiaryForeground,
+                  ),
                 ),
               ),
           ] else if (data != null) ...[
@@ -263,25 +285,33 @@ class WalletCard extends StatelessWidget {
       return Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(
-            children: [
-              Text(
-                cardData!.categoryName,
-                style: AppTypography.cardName(color: foregroundColor),
-              ),
-              Text(
-                ' Card',
-                style: AppTypography.cardNameLight(color: secondaryForeground),
-              ),
-            ],
+          CardOverlaySlot(
+            visible: _visibility.shows(CardOverlay.category),
+            child: Row(
+              children: [
+                Text(
+                  cardData!.categoryName,
+                  style: AppTypography.cardName(color: foregroundColor),
+                ),
+                Text(
+                  ' Card',
+                  style: AppTypography.cardNameLight(
+                    color: secondaryForeground,
+                  ),
+                ),
+              ],
+            ),
           ),
           if (cardData!.cardNickname != null &&
               cardData!.cardNickname!.isNotEmpty)
-            Text(
-              cardData!.cardNickname!,
-              style: AppTypography.overline(color: tertiaryForeground),
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
+            CardOverlaySlot(
+              visible: _visibility.shows(CardOverlay.nickname),
+              child: Text(
+                cardData!.cardNickname!,
+                style: AppTypography.overline(color: tertiaryForeground),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
             ),
         ],
       );

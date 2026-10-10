@@ -5,13 +5,117 @@ import 'package:cards_wallet/screens/appearance_screen.dart';
 import 'package:cards_wallet/theme/app_colors.dart';
 import 'package:cards_wallet/theme/app_motion.dart';
 import 'package:cards_wallet/widgets/app_icon_artwork.dart';
+import 'package:cards_wallet/widgets/app_design_system.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
+
+  setUp(() {
+    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+        .setMockMethodCallHandler(
+          const MethodChannel('cards_wallet/appearance'),
+          (_) async => null,
+        );
+  });
+  tearDown(() {
+    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+        .setMockMethodCallHandler(
+          const MethodChannel('cards_wallet/appearance'),
+          null,
+        );
+  });
+
+  testWidgets(
+    'device style examples differ and compact color tiles keep all circles visible',
+    (tester) async {
+      tester.view.physicalSize = const Size(390, 900);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+      SharedPreferences.setMockInitialValues({});
+      final provider = ThemeProvider();
+      final icons = AppIconProvider();
+      addTearDown(provider.dispose);
+      addTearDown(icons.dispose);
+      await tester.pump();
+      await provider.useSystemColorSource();
+      await tester.pumpWidget(
+        MultiProvider(
+          providers: [
+            ChangeNotifierProvider.value(value: provider),
+            ChangeNotifierProvider.value(value: icons),
+          ],
+          child: MaterialApp(
+            theme: provider.lightTheme,
+            home: const AppearanceScreen(),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      Color previewPrimary(String style) {
+        final buttons = find.descendant(
+          of: find.byKey(ValueKey('palette-style-$style')),
+          matching: find.byWidgetPredicate(
+            (widget) =>
+                widget is Container &&
+                widget.decoration is ShapeDecoration &&
+                (widget.decoration as ShapeDecoration).shape is StadiumBorder,
+          ),
+        );
+        return (tester.widget<Container>(buttons.first).decoration
+                as ShapeDecoration)
+            .color!;
+      }
+
+      expect(previewPrimary('tonalSpot'), isNot(previewPrimary('expressive')));
+      for (final strategy in config.AppPaletteStrategy.values) {
+        expect(
+          previewPrimary(strategy.name),
+          ColorScheme.fromSeed(
+            seedColor: provider.colorScheme.primary,
+            dynamicSchemeVariant: strategy.schemeVariant,
+          ).primary,
+        );
+      }
+      final device = find.byKey(const ValueKey('device-colors-tile'));
+      await tester.scrollUntilVisible(
+        device,
+        200,
+        scrollable: find.byType(Scrollable).first,
+      );
+      expect(tester.getSize(device).height, lessThanOrEqualTo(76));
+      final tile = find.byKey(const ValueKey('color-theme-indigo'));
+      await tester.scrollUntilVisible(
+        tile,
+        150,
+        scrollable: find.byType(Scrollable).first,
+      );
+      expect(tester.getSize(tile).height, lessThan(90));
+      final ocean = find.byKey(const ValueKey('color-theme-ocean'));
+      expect(
+        tester.getTopLeft(ocean).dx - tester.getTopRight(tile).dx,
+        closeTo(12, 0.01),
+      );
+      final stack = find.descendant(of: tile, matching: find.byType(Stack));
+      final bounds = tester.getRect(stack);
+      for (final element
+          in find
+              .descendant(of: stack, matching: find.byType(Positioned))
+              .evaluate()) {
+        final circle = tester.getRect(
+          find.byElementPredicate((candidate) => candidate == element),
+        );
+        expect(circle.left, greaterThanOrEqualTo(bounds.left));
+        expect(circle.right, lessThanOrEqualTo(bounds.right));
+      }
+      expect(tester.takeException(), isNull);
+    },
+  );
 
   testWidgets('theme provider exposes every expressive appearance mode', (
     tester,
@@ -27,7 +131,7 @@ void main() {
     expect(provider.darkTheme.extension<AppSemanticColors>(), isNotNull);
     expect(provider.lightTheme.chipTheme.showCheckmark, isFalse);
     expect(provider.darkTheme.chipTheme.showCheckmark, isFalse);
-    expect(provider.paletteStrategy, config.AppPaletteStrategy.expressive);
+    expect(provider.paletteStrategy, config.AppPaletteStrategy.tonalSpot);
     expect(provider.materialThemeMode, ThemeMode.system);
 
     await provider.setBrightnessMode(config.AppBrightnessMode.amoled);
@@ -57,6 +161,7 @@ void main() {
     expect(provider.colorSource, config.AppColorSource.preset);
     expect(provider.accentId, config.AccentColorOption.orchid.id);
 
+    await provider.setPaletteStrategy(config.AppPaletteStrategy.expressive);
     final expressivePrimary = provider.lightTheme.colorScheme.primary;
     await provider.setPaletteStrategy(config.AppPaletteStrategy.tonalSpot);
     expect(provider.paletteStrategy, config.AppPaletteStrategy.tonalSpot);
@@ -127,6 +232,21 @@ void main() {
     );
     expect(find.text('Tonal spot'), findsWidgets);
     expect(find.text('Expressive'), findsWidgets);
+    final tonal = find.byKey(const ValueKey('palette-style-tonalSpot'));
+    final expressive = find.byKey(const ValueKey('palette-style-expressive'));
+    expect(tester.getTopLeft(tonal).dy, tester.getTopLeft(expressive).dy);
+    expect(
+      tester.getTopLeft(tonal).dx,
+      lessThan(tester.getTopLeft(expressive).dx),
+    );
+    expect(
+      find.descendant(of: tonal, matching: find.text('Buttons')),
+      findsOneWidget,
+    );
+    expect(
+      find.descendant(of: tonal, matching: find.text('Surfaces')),
+      findsOneWidget,
+    );
     expect(
       find.bySemanticsLabel(
         RegExp(r'System.*Follows your device', dotAll: true),
@@ -139,6 +259,25 @@ void main() {
       scrollable: find.byType(Scrollable).first,
     );
     expect(find.text('Device colors'), findsOneWidget);
+    final colorTiles = [
+      'indigo',
+      'ocean',
+      'ember',
+    ].map((id) => find.byKey(ValueKey('color-theme-$id'))).toList();
+    expect(
+      tester.getTopLeft(colorTiles[0]).dy,
+      tester.getTopLeft(colorTiles[1]).dy,
+    );
+    expect(
+      tester.getTopLeft(colorTiles[1]).dy,
+      tester.getTopLeft(colorTiles[2]).dy,
+    );
+    final selectedTile = tester.widget<AppSurface>(colorTiles.first);
+    expect(selectedTile.border, BorderSide.none);
+    expect(
+      selectedTile.color,
+      provider.lightTheme.colorScheme.primaryContainer,
+    );
     await tester.scrollUntilVisible(
       find.text('Custom color'),
       260,

@@ -6,6 +6,8 @@ import 'package:provider/provider.dart';
 import 'package:uuid/uuid.dart';
 
 import '../models/card_data.dart';
+import '../models/card_image_placement.dart';
+import '../models/card_overlay_visibility.dart';
 import '../models/card_group.dart';
 import '../data/banks.dart';
 import '../data/card_designs.dart';
@@ -59,6 +61,8 @@ class _ManualAddCardScreenState extends State<ManualAddCardScreen> {
   double _customGradientAngle = 135;
   String? _customBackgroundImagePath;
   double _backgroundImageBlur = 0;
+  CardImagePlacement _backgroundImagePlacement = const CardImagePlacement();
+  CardOverlayVisibility _overlayVisibility = const CardOverlayVisibility();
   bool _isLoading = false;
   Set<String> _existingCardholderNames = {};
   CardNetwork _detectedNetwork = CardNetwork.unknown;
@@ -150,6 +154,8 @@ class _ManualAddCardScreenState extends State<ManualAddCardScreen> {
         customGradientAngle: _customGradientAngle,
         customBackgroundImagePath: savedBackgroundPath,
         backgroundImageBlur: _effectiveBackgroundImageBlur,
+        backgroundImagePlacement: _backgroundImagePlacement,
+        overlayVisibility: _overlayVisibility,
         groupId: _selectedGroup?.id,
       );
 
@@ -368,7 +374,7 @@ class _ManualAddCardScreenState extends State<ManualAddCardScreen> {
     );
   }
 
-  Widget _buildPreviewCard() {
+  Widget _buildPreviewCard({CardImagePlacement? imagePlacement}) {
     final themeProvider = context.watch<ThemeProvider>();
     final primaryColor =
         _selectedDesign?.primaryColor ??
@@ -418,10 +424,14 @@ class _ManualAddCardScreenState extends State<ManualAddCardScreen> {
               ? _customBackgroundImagePath
               : null,
           backgroundImageBlur: _effectiveBackgroundImageBlur,
+          backgroundImagePlacement: imagePlacement ?? _backgroundImagePlacement,
           fallbackPrimaryColor: primaryColor,
           fallbackSecondaryColor: secondaryColor,
           borderRadius: BorderRadius.circular(20),
           child: WalletCardFace(
+            overlayVisibility: _backgroundMode == CardBackgroundMode.customImage
+                ? _overlayVisibility
+                : const CardOverlayVisibility(),
             bank: _selectedBank,
             network: _detectedNetwork,
             categoryName: _cardCategory == CardCategory.credit
@@ -775,6 +785,14 @@ class _ManualAddCardScreenState extends State<ManualAddCardScreen> {
       gradientAngle: _customGradientAngle,
       customImagePath: _customBackgroundImagePath,
       backgroundImageBlur: _backgroundImageBlur,
+      imagePlacement: _backgroundImagePlacement,
+      overlayVisibility: _overlayVisibility,
+      onOverlayVisibilityChanged: (visibility) =>
+          setState(() => _overlayVisibility = visibility),
+      onImagePlacementChanged: (placement) =>
+          setState(() => _backgroundImagePlacement = placement),
+      imagePreviewBuilder: (placement) =>
+          _buildPreviewCard(imagePlacement: placement),
       onModeChanged: (mode) => setState(() => _backgroundMode = mode),
       onStyleChanged: (style) {
         setState(() {
@@ -791,8 +809,10 @@ class _ManualAddCardScreenState extends State<ManualAddCardScreen> {
       },
       onGradientAngleChanged: (angle) =>
           setState(() => _customGradientAngle = angle),
-      onCustomImageChanged: (path) =>
-          setState(() => _customBackgroundImagePath = path),
+      onCustomImageChanged: (path) => setState(() {
+        _customBackgroundImagePath = path;
+        _backgroundImagePlacement = const CardImagePlacement();
+      }),
       onBackgroundImageBlurChanged: (blur) =>
           setState(() => _backgroundImageBlur = blur),
     );

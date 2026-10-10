@@ -101,6 +101,48 @@ class AccentColorOption {
     seedColor: Color(0xFF64748B),
   );
 
+  // Muted seed colors expanded into accessible Material 3 tonal schemes.
+  static const lavender = AccentColorOption(
+    id: 'lavender',
+    name: 'Lavender',
+    seedColor: Color(0xFF9A8CB5),
+  );
+  static const sage = AccentColorOption(
+    id: 'sage',
+    name: 'Sage',
+    seedColor: Color(0xFF8BA58B),
+  );
+  static const dustyRose = AccentColorOption(
+    id: 'dusty_rose',
+    name: 'Dusty rose',
+    seedColor: Color(0xFFB58B97),
+  );
+  static const sand = AccentColorOption(
+    id: 'sand',
+    name: 'Sand',
+    seedColor: Color(0xFFB8A389),
+  );
+  static const powderBlue = AccentColorOption(
+    id: 'powder_blue',
+    name: 'Powder blue',
+    seedColor: Color(0xFF8FAABC),
+  );
+  static const peach = AccentColorOption(
+    id: 'peach',
+    name: 'Peach',
+    seedColor: Color(0xFFC69F8A),
+  );
+  static const mist = AccentColorOption(
+    id: 'mist',
+    name: 'Mist',
+    seedColor: Color(0xFF8BA6A6),
+  );
+  static const olive = AccentColorOption(
+    id: 'olive',
+    name: 'Olive',
+    seedColor: Color(0xFFA3A080),
+  );
+
   static const List<AccentColorOption> presets = [
     indigo,
     ocean,
@@ -113,10 +155,17 @@ class AccentColorOption {
     amber,
     yellow,
     graphite,
+    lavender,
+    sage,
+    dustyRose,
+    sand,
+    powderBlue,
+    peach,
+    mist,
+    olive,
   ];
 
-  /// A deliberately compact set for the Appearance screen. The remaining
-  /// presets stay available so existing saved preferences continue to load.
+  /// Appearance choices; older vivid presets remain loadable by saved id.
   static const List<AccentColorOption> featuredPresets = [
     indigo,
     ocean,
@@ -124,6 +173,14 @@ class AccentColorOption {
     forest,
     orchid,
     graphite,
+    lavender,
+    sage,
+    dustyRose,
+    sand,
+    powderBlue,
+    peach,
+    mist,
+    olive,
   ];
 
   static AccentColorOption? findById(String id) {
